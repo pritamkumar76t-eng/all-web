@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseApp - Next Gen Mobile Experience</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f3ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#1e1b4b',
+                        }
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-15px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-text {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #d946ef 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Navigation Bar -->
+    <nav class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-white/80 backdrop-blur-md border-b border-slate-100" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <i data-lucide="zap" class="w-6 h-6 fill-white"></i>
+                </div>
+                <span class="text-2xl font-extrabold tracking-tight text-slate-900">Pulse<span class="text-brand-600">App</span></span>
+            </a>
+
+            <!-- Desktop Links -->
+            <div class="hidden md:flex items-center gap-8 font-medium text-sm text-slate-600">
+                <a href="#features" class="hover:text-brand-600 transition-colors">Features</a>
+                <a href="#how-it-works" class="hover:text-brand-600 transition-colors">How it Works</a>
+                <a href="#testimonials" class="hover:text-brand-600 transition-colors">Testimonials</a>
+                <a href="#pricing" class="hover:text-brand-600 transition-colors">Pricing</a>
+            </div>
+
+            <!-- Header CTA -->
+            <div class="hidden md:flex items-center gap-4">
+                <a href="#download" class="gradient-bg text-white px-6 py-2.5 rounded-full font-semibold shadow-md hover:shadow-lg hover:shadow-brand-500/25 transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 text-sm">
+                    Get App
+                </a>
+            </div>
+
+            <!-- Mobile Hamburger -->
+            <button id="menu-btn" class="md:hidden text-slate-700 hover:text-brand-600 focus:outline-none p-2">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-b border-slate-100 px-6 py-4 flex flex-col gap-4 font-medium text-slate-600">
+            <a href="#features" class="hover:text-brand-600 py-1">Features</a>
+            <a href="#how-it-works" class="hover:text-brand-600 py-1">How it Works</a>
+            <a href="#testimonials" class="hover:text-brand-600 py-1">Testimonials</a>
+            <a href="#pricing" class="hover:text-brand-600 py-1">Pricing</a>
+            <a href="#download" class="gradient-bg text-white px-5 py-2.5 rounded-xl font-semibold text-center shadow-md">Get App</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-20 md:pt-40 md:pb-28 overflow-hidden relative">
+        <!-- Background Glow Elements -->
+        <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-500/10 rounded-full blur-3xl -z-10 pointer-events-none"></div>
+        <div class="absolute top-1/3 right-10 w-[300px] h-[300px] bg-pink-500/10 rounded-full blur-3xl -z-10 pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+                <!-- Hero Content -->
+                <div class="lg:col-span-7 text-center lg:text-left">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-600 font-semibold text-xs tracking-wide uppercase mb-6">
+                        <span class="flex h-2 w-2 rounded-full bg-brand-600 animate-pulse"></span>
+                        Next Generation Productivity 2.0
+                    </div>
+
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.15] mb-6">
+                        Master Your Day with <span class="gradient-text">Effortless Precision</span>
+                    </h1>
+
+                    <p class="text-lg text-slate-600 mb-8 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                        PulseApp brings your workflows, analytics, and team collaborations into one seamlessly designed mobile hub. Work smarter, anywhere.
+                    </p>
+
+                    <!-- Download Buttons -->
+                    <div class="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-10">
+                        <a href="#download" class="flex items-center gap-3 bg-slate-900 text-white px-6 py-3.5 rounded-2xl hover:bg-slate-800 transition-all hover:-translate-y-0.5 shadow-lg shadow-slate-900/10">
+                            <i data-lucide="apple" class="w-7 h-7 fill-white"></i>
+                            <div class="text-left">
+                                <p class="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Download on the</p>
+                                <p class="text-sm font-semibold -mt-0.5">App Store</p>
+                            </div>
+                        </a>
+                        <a href="#download" class="flex items-center gap-3 bg-slate-900 text-white px-6 py-3.5 rounded-2xl hover:bg-slate-800 transition-all hover:-translate-y-0.5 shadow-lg shadow-slate-900/10">
+                            <i data-lucide="play" class="w-7 h-7 fill-white"></i>
+                            <div class="text-left">
+                                <p class="text-[10px] uppercase tracking-wider text-slate-400 font-medium">GET IT ON</p>
+                                <p class="text-sm font-semibold -mt-0.5">Google Play</p>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Trust Stats -->
+                    <div class="flex items-center justify-center lg:justify-start gap-8 border-t border-slate-200/80 pt-6">
+                        <div>
+                            <p class="text-2xl font-bold text-slate-900">4.9★</p>
+                            <p class="text-xs text-slate-500 font-medium">100k+ Reviews</p>
+                        </div>
+                        <div class="h-8 w-px bg-slate-200"></div>
+                        <div>
+                            <p class="text-2xl font-bold text-slate-900">2M+</p>
+                            <p class="text-xs text-slate-500 font-medium">Active Users</p>
+                        </div>
+                        <div class="h-8 w-px bg-slate-200"></div>
+                        <div>
+                            <p class="text-2xl font-bold text-slate-900">99.9%</p>
+                            <p class="text-xs text-slate-500 font-medium">Uptime Guard</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero Smartphone Mockup -->
+                <div class="lg:col-span-5 flex justify-center relative">
+                    <div class="relative animate-float max-w-[300px] sm:max-w-[340px]">
+                        <!-- Glow behind mockup -->
+                        <div class="absolute inset-0 gradient-bg rounded-[50px] blur-2xl opacity-40 transform scale-95"></div>
+                        
+                        <!-- Phone Frame -->
+                        <div class="relative bg-slate-900 p-4 rounded-[50px] shadow-2xl border-4 border-slate-800">
+                            <!-- Dynamic Island / Notch -->
+                            <div class="absolute top-7 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-full z-30 flex items-center justify-between px-2">
+                                <div class="w-2.5 h-2.5 rounded-full bg-slate-900"></div>
+                                <div class="w-2 h-2 rounded-full bg-blue-900/60"></div>
+                            </div>
+
+                            <!-- Screen Container -->
+                            <div class="bg-slate-900 rounded-[40px] overflow-hidden pt-8 pb-4 px-4 text-white min-h-[580px] flex flex-col justify-between border border-slate-800/80">
+                                <!-- App Header -->
+                                <div class="flex items-center justify-between my-2">
+                                    <div>
+                                        <p class="text-xs text-slate-400">Good Morning 👋</p>
+                                        <p class="text-base font-bold">Alex Morgan</p>
+                                    </div>
+                                    <div class="w-8 h-8 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center">
+                                        <i data-lucide="bell" class="w-4 h-4 text-brand-400"></i>
+                                    </div>
+                                </div>
+
+                                <!-- Mini Analytics Card -->
+                                <div class="bg-slate-800/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-700/50 my-2">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs font-medium text-slate-400">Weekly Performance</span>
+                                        <span class="text-xs text-emerald-400 font-semibold">+24.8%</span>
+                                    </div>
+                                    <p class="text-2xl font-bold mb-3">$14,280.00</p>
+                                    <!-- Bar Simulation -->
+                                    <div class="flex items-end gap-2 h-16 pt-2">
+                                        <div class="bg-brand-500/40 w-full h-[40%] rounded-t"></div>
+                                        <div class="bg-brand-500/60 w-full h-[65%] rounded-t"></div>
+                                        <div class="bg-brand-500/40 w-full h-[50%] rounded-t"></div>
+                                        <div class="gradient-bg w-full h-[90%] rounded-t shadow-lg"></div>
+                                        <div class="bg-brand-500/50 w-full h-[70%] rounded-t"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Action List -->
+                                <div class="space-y-2.5 my-2">
+                                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick Actions</p>
+                                    
+                                    <div class="bg-slate-800/50 p-3 rounded-xl flex items-center justify-between border border-slate-700/30">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs font-medium">Task Syncing</p>
+                                                <p class="text-[10px] text-slate-400">12 items completed</p>
+                                            </div>
+                                        </div>
+                                        <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-medium px-2 py-0.5 rounded-full">Done</span>
+                                    </div>
+
+                                    <div class="bg-slate-800/50 p-3 rounded-xl flex items-center justify-between border border-slate-700/30">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center text-pink-400">
+                                                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs font-medium">Cloud Backup</p>
+                                                <p class="text-[10px] text-slate-400">Auto-saved 2m ago</p>
+                                            </div>
+                                        </div>
+                                        <span class="text-[10px] bg-brand-500/20 text-brand-300 font-medium px-2 py-0.5 rounded-full">Active</span>
+                                    </div>
+                                </div>
+
+                                <!-- Bottom Nav -->
+                                <div class="bg-slate-800/90 rounded-2xl p-2.5 flex justify-around items-center border border-slate-700/50 mt-2">
+                                    <i data-lucide="home" class="w-5 h-5 text-brand-400"></i>
+                                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-slate-400"></i>
+                                    <i data-lucide="layers" class="w-5 h-5 text-slate-400"></i>
+                                    <i data-lucide="user" class="w-5 h-5 text-slate-400"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-20 bg-white relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <!-- Section Header -->
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-brand-600 mb-2">Powerful Features</h2>
+                <p class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">Everything You Need to Scale Your Workflow</p>
+                <p class="text-slate-600 text-base">Engineered with high precision to give you speed, security, and an unrivaled user interface.</p>
+            </div>
+
+            <!-- Features Grid -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/5 group hover:-translate-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center text-brand-600 mb-6 group-hover:scale-110 group-hover:bg-brand-600 group-hover:text-white transition-all duration-300">
+                        <i data-lucide="zap" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Real-time Syncing</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Instant cloud sync ensures all your devices remain seamlessly updated without any lag or manual refresh.</p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/5 group hover:-translate-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 mb-6 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                        <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Bank-Grade Security</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">End-to-end AES 256-bit encryption protects all your private files, notes, and sensitive activity logins.</p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/5 group hover:-translate-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-600 mb-6 group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
+                        <i data-lucide="cpu" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Smart AI Insights</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Automated analytics summarize your peak productivity periods and suggest optimizations daily.</p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/5 group hover:-translate-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-600 mb-6 group-hover:scale-110 group-hover:bg-pink-600 group-hover:text-white transition-all duration-300">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Team Collaboration</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Invite teammates to shared workspaces with instant chat features, comments, and task assignments.</p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/5 group hover:-translate-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 mb-6 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                        <i data-lucide="wifi-off" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Offline First Mode</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Keep working smoothly even with zero connection. Your changes auto-upload as soon as you reconnect.</p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-all duration-300 hover:shadow-xl hover:shadow-brand-500/5 group hover:-translate-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 mb-6 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                        <i data-lucide="bell-ring" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Smart Reminders</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Contextual push notifications alert you to high-priority items without disrupting your flow state.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-20 bg-slate-900 text-white relative overflow-hidden">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <!-- Section Header -->
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-brand-400 mb-2">Simple Onboarding</h2>
+                <p class="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4">Get Started in 3 Easy Steps</p>
+                <p class="text-slate-400 text-base">From setup to mastery in under 2 minutes. Experience frictionless onboarding.</p>
+            </div>
+
+            <!-- Steps Grid -->
+            <div class="grid md:grid-cols-3 gap-8 relative">
+                <!-- Step 1 -->
+                <div class="relative p-8 rounded-3xl bg-slate-800/60 border border-slate-700/50 backdrop-blur-sm">
+                    <div class="w-12 h-12 rounded-2xl gradient-bg flex items-center justify-center text-white font-extrabold text-xl mb-6 shadow-lg shadow-brand-500/20">
+                        01
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Download & Register</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Download PulseApp from Apple App Store or Google Play and sign up with one tap via SSO.</p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="relative p-8 rounded-3xl bg-slate-800/60 border border-slate-700/50 backdrop-blur-sm">
+                    <div class="w-12 h-12 rounded-2xl gradient-bg flex items-center justify-center text-white font-extrabold text-xl mb-6 shadow-lg shadow-brand-500/20">
+                        02
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Custom Integration</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Connect your favorite tools—Slack, Notion, Google Drive, and GitHub—with a single click.</p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="relative p-8 rounded-3xl bg-slate-800/60 border border-slate-700/50 backdrop-blur-sm">
+                    <div class="w-12 h-12 rounded-2xl gradient-bg flex items-center justify-center text-white font-extrabold text-xl mb-6 shadow-lg shadow-brand-500/20">
+                        03
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Supercharge Workflow</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Automate daily admin work and start tracking productivity analytics effortlessly.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section id="testimonials" class="py-20 bg-slate-50 relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <!-- Section Header -->
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-brand-600 mb-2">User Feedback</h2>
+                <p class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">Loved by Teams Around the World</p>
+                <p class="text-slate-600 text-base">Here is what developers, creators, and leaders say about PulseApp.</p>
+            </div>
+
+            <!-- Testimonials Grid -->
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Card 1 -->
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <div class="flex text-amber-400 mb-4">
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                        </div>
+                        <p class="text-slate-700 text-sm italic leading-relaxed mb-6">"PulseApp transformed how our remote engineering team handles sprint updates. The UI is ridiculously crisp and responsive."</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" alt="Sarah Jenkins" class="w-12 h-12 rounded-full object-cover">
+                        <div>
+                            <h4 class="font-bold text-slate-900 text-sm">Sarah Jenkins</h4>
+                            <p class="text-xs text-slate-500">Lead Tech Lead @ Stripe</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <div class="flex text-amber-400 mb-4">
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                        </div>
+                        <p class="text-slate-700 text-sm italic leading-relaxed mb-6">"The real-time synchronization saved our product launch. I can't imagine organizing my day without this application."</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150" alt="Michael Chang" class="w-12 h-12 rounded-full object-cover">
+                        <div>
+                            <h4 class="font-bold text-slate-900 text-sm">Michael Chang</h4>
+                            <p class="text-xs text-slate-500">Product Manager @ Canva</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <div class="flex text-amber-400 mb-4">
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                            <i data-lucide="star" class="w-5 h-5 fill-amber-400"></i>
+                        </div>
+                        <p class="text-slate-700 text-sm italic leading-relaxed mb-6">"Offline mode works like magic! I work frequently while traveling, and my notes sync up instantly the moment I touch down."</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150" alt="Elena Rostova" class="w-12 h-12 rounded-full object-cover">
+                        <div>
+                            <h4 class="font-bold text-slate-900 text-sm">Elena Rostova</h4>
+                            <p class="text-xs text-slate-500">UX Designer @ Figma</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-20 bg-white relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <!-- Section Header -->
+            <div class="text-center max-w-3xl mx-auto mb-12">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-brand-600 mb-2">Flexible Pricing</h2>
+                <p class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">Simple, Transparent Plans</p>
+                <p class="text-slate-600 text-base">Choose the best plan for yourself or your whole team. No hidden fees.</p>
+                
+                <!-- Billing Toggle -->
+                <div class="flex items-center justify-center gap-4 mt-8">
+                    <span class="text-sm font-semibold text-slate-700">Monthly</span>
+                    <button id="pricing-toggle" class="w-14 h-8 bg-slate-200 rounded-full p-1 transition-colors duration-300 relative focus:outline-none">
+                        <div id="toggle-circle" class="w-6 h-6 bg-brand-600 rounded-full transition-transform duration-300"></div>
+                    </button>
+                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                        Annually 
+                        <span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Save 20%</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Pricing Cards Grid -->
+            <div class="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <!-- Free Plan -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Starter</h3>
+                        <p class="text-slate-500 text-sm mb-6">Perfect for individual users exploring features.</p>
+                        <div class="mb-6">
+                            <span class="text-4xl font-extrabold text-slate-900">$0</span>
+                            <span class="text-slate-500 text-sm"> / forever</span>
+                        </div>
+                        <ul class="space-y-3 text-sm text-slate-600 mb-8">
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Up to 3 active projects
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Standard Syncing speed
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> 1GB Secure Cloud Storage
+                            </li>
+                            <li class="flex items-center gap-3 text-slate-400">
+                                <i data-lucide="x" class="w-4 h-4 text-slate-300"></i> AI Productivity Assistant
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="#download" class="w-full py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-center transition-colors">Start Free</a>
+                </div>
+
+                <!-- Pro Plan (Featured) -->
+                <div class="p-8 rounded-3xl gradient-bg text-white shadow-2xl shadow-brand-500/30 flex flex-col justify-between relative transform lg:-translate-y-2 border border-brand-400">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-900 font-extrabold text-[11px] uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+                        Most Popular
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">Pro Member</h3>
+                        <p class="text-indigo-100 text-sm mb-6">Ideal for professionals & power creators.</p>
+                        <div class="mb-6">
+                            <span class="text-4xl font-extrabold price-value" data-monthly="12" data-annual="9">$12</span>
+                            <span class="text-indigo-100 text-sm"> / month</span>
+                        </div>
+                        <ul class="space-y-3 text-sm text-indigo-50 mb-8">
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-amber-300"></i> Unlimited active projects
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-amber-300"></i> High-speed priority syncing
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-amber-300"></i> 100GB Cloud Storage
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-amber-300"></i> Smart AI Assistant Insights
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="#download" class="w-full py-3 rounded-2xl bg-white text-brand-600 hover:bg-slate-100 font-bold text-center transition-colors shadow-lg">Get Started Pro</a>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div class="p-8 rounded-3xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Team Enterprise</h3>
+                        <p class="text-slate-500 text-sm mb-6">Built for scaling teams requiring custom security.</p>
+                        <div class="mb-6">
+                            <span class="text-4xl font-extrabold price-value" data-monthly="29" data-annual="24">$29</span>
+                            <span class="text-slate-500 text-sm"> / month</span>
+                        </div>
+                        <ul class="space-y-3 text-sm text-slate-600 mb-8">
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Everything in Pro plan
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Unlimited Team Workspaces
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Dedicated 24/7 Account Manager
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i> Custom API Access & Audit Logs
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="#download" class="w-full py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-center transition-colors">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download CTA Banner -->
+    <section id="download" class="py-20 bg-slate-900 text-white relative overflow-hidden">
+        <div class="absolute inset-0 gradient-bg opacity-10 blur-3xl"></div>
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+            <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight mb-6">Ready to Transform Your Daily Workflow?</h2>
+            <p class="text-slate-300 text-lg max-w-2xl mx-auto mb-10">Download PulseApp today and experience a faster, sleeker, and more efficient mobile experience.</p>
+            
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <a href="#" class="flex items-center gap-3 bg-white text-slate-900 px-8 py-4 rounded-2xl hover:bg-slate-100 transition-all hover:-translate-y-0.5 shadow-xl">
+                    <i data-lucide="apple" class="w-7 h-7 fill-slate-900"></i>
+                    <div class="text-left">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Download on the</p>
+                        <p class="text-base font-bold -mt-0.5">App Store</p>
+                    </div>
+                </a>
+                <a href="#" class="flex items-center gap-3 bg-slate-800 text-white border border-slate-700 px-8 py-4 rounded-2xl hover:bg-slate-700 transition-all hover:-translate-y-0.5 shadow-xl">
+                    <i data-lucide="play" class="w-7 h-7 fill-white"></i>
+                    <div class="text-left">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-medium">GET IT ON</p>
+                        <p class="text-base font-bold -mt-0.5">Google Play</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 text-slate-400 py-16 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
+                <!-- Brand Info -->
+                <div class="lg:col-span-2">
+                    <a href="#" class="flex items-center gap-2.5 mb-4">
+                        <div class="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center text-white">
+                            <i data-lucide="zap" class="w-5 h-5 fill-white"></i>
+                        </div>
+                        <span class="text-2xl font-extrabold text-white">Pulse<span class="text-brand-500">App</span></span>
+                    </a>
+                    <p class="text-sm text-slate-400 max-w-sm mb-6 leading-relaxed">
+                        PulseApp provides modern teams with next-gen productivity tools, real-time analytics, and instant multi-device syncing.
+                    </p>
+                    <div class="flex items-center gap-4">
+                        <a href="#" class="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center hover:bg-brand-600 hover:text-white transition-colors"><i data-lucide="twitter" class="w-4 h-4"></i></a>
+                        <a href="#" class="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center hover:bg-brand-600 hover:text-white transition-colors"><i data-lucide="github" class="w-4 h-4"></i></a>
+                        <a href="#" class="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center hover:bg-brand-600 hover:text-white transition-colors"><i data-lucide="instagram" class="w-4 h-4"></i></a>
+                        <a href="#" class="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center hover:bg-brand-600 hover:text-white transition-colors"><i data-lucide="linkedin" class="w-4 h-4"></i></a>
+                    </div>
+                </div>
+
+                <!-- Column 1 -->
+                <div>
+                    <h4 class="text-white text-sm font-semibold mb-4">Product</h4>
+                    <ul class="space-y-2.5 text-sm">
+                        <li><a href="#features" class="hover:text-white transition-colors">Features</a></li>
+                        <li><a href="#pricing" class="hover:text-white transition-colors">Pricing Plans</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">API Docs</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Releases</a></li>
+                    </ul>
+                </div>
+
+                <!-- Column 2 -->
+                <div>
+                    <h4 class="text-white text-sm font-semibold mb-4">Company</h4>
+                    <ul class="space-y-2.5 text-sm">
+                        <li><a href="#" class="hover:text-white transition-colors">About Us</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Careers</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Press Kit</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Contact</a></li>
+                    </ul>
+                </div>
+
+                <!-- Newsletter Column -->
+                <div>
+                    <h4 class="text-white text-sm font-semibold mb-4">Stay Updated</h4>
+                    <p class="text-xs text-slate-400 mb-4">Subscribe to our newsletter for product releases & tips.</p>
+                    <form onsubmit="event.preventDefault();" class="space-y-2">
+                        <input type="email" placeholder="Enter your email" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-brand-500">
+                        <button type="submit" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl py-2 text-sm transition-colors">Subscribe</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="pt-8 border-t border-slate-900 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+                <p>&copy; 2026 PulseApp Technologies Inc. All rights reserved.</p>
+                <div class="flex gap-6">
+                    <a href="#" class="hover:text-slate-400">Privacy Policy</a>
+                    <a href="#" class="hover:text-slate-400">Terms of Service</a>
+                    <a href="#" class="hover:text-slate-400">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Logic -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Mobile Menu Toggle
+        const menuBtn = document.getElementById('menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        menuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // Pricing Monthly / Annual Toggle Logic
+        const pricingToggle = document.getElementById('pricing-toggle');
+        const toggleCircle = document.getElementById('toggle-circle');
+        const priceValues = document.querySelectorAll('.price-value');
+        let isAnnual = false;
+
+        pricingToggle.addEventListener('click', () => {
+            isAnnual = !isAnnual;
+            if (isAnnual) {
+                toggleCircle.classList.add('translate-x-6');
+                pricingToggle.classList.add('bg-brand-600');
+                priceValues.forEach(el => {
+                    const annualPrice = el.getAttribute('data-annual');
+                    if (annualPrice) el.textContent = '$' + annualPrice;
+                });
+            } else {
+                toggleCircle.classList.remove('translate-x-6');
+                pricingToggle.classList.remove('bg-brand-600');
+                priceValues.forEach(el => {
+                    const monthlyPrice = el.getAttribute('data-monthly');
+                    if (monthlyPrice) el.textContent = '$' + monthlyPrice;
+                });
+            }
+        });
+    </script>
+</body>
+</html>
