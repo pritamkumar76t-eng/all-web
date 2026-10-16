@@ -128,20 +128,23 @@
 
             <!-- Undo / Redo -->
             <div class="flex items-center gap-1">
-                <button onclick="triggerUndo()" class="cad-btn" title="पूर्ववत करें (Undo - Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                <button onclick="triggerUndo()" class="cad-btn" title="पूर्ववत करें (Undo - Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>Volat
                 <button onclick="triggerRedo()" class="cad-btn" title="फिर से करें (Redo - Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
             </div>
         </div>
 
         <!-- Session Status -->
         <div class="flex items-center gap-3">
+            <button id="others-btn" class="flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-semibold text-white shadow transition-colors duration-700" style="background:#0e7490;border:1px solid #22d3ee" title="दूसरे users क्या कर रहे हैं देखें">
+                <i class="fa-solid fa-users"></i><span id="others-btn-text">अन्य Users</span>
+            </button>
             <div id="presence-pill" class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-slate-300">
                 <span id="presence-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
-                <span id="presence-text">Connect कनेक्ट हो रहा है…</span>
+                <span id="presence-text">Connecting कनेक्ट हो रहा है…</span>
             </div>
             <div class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-amber-400">
                 <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>अस्थायी सत्र (NON SAVE - नो ऑटो-सेव)</span>
+                <span>अस्थायी सत्र (Connect - नो ऑटो-सेव)</span>
             </div>
         </div>
     </header>
@@ -271,7 +274,7 @@
         <div id="toast-container" class="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-2"></div>
 
         <!-- Dynamic On-Screen Coordinates & HUD -->
-        <div class="absolute bottom-4 right-4 bg-[#12151d]/90 border border-[#232a38] rounded-lg px-3 py-1.5 text-xs text-cyan-300 mono shadow-2xl backdrop-blur flex gap-4 pointer-events-none">
+        <div id="hud-box" class="absolute bottom-4 right-4 bg-[#12151d]/90 border border-[#232a38] rounded-lg px-3 py-1.5 text-xs text-cyan-300 mono shadow-2xl backdrop-blur flex gap-4 pointer-events-none">
             <span id="hud-coords">X: 0.00, Y: 0.00</span>
             <span id="hud-elements">ऑब्जेक्ट: 0</span>
             <span id="hud-zoom">ज़ूम: 100%</span>
@@ -282,6 +285,27 @@
             <i class="fa-solid fa-object-group"></i>
             <span id="selection-text">1 वस्तु चयनित</span>
             <button onclick="clearSelection()" class="ml-2 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Group Chat (Telegram जैसा, दाईं ओर) -->
+        <div id="chat-box" class="absolute right-0 top-0 bottom-0 bg-[#0e1621] border-l border-[#232a38] shadow-2xl flex flex-col" style="z-index:55; width:288px;">
+            <div class="flex items-center justify-between px-2 py-1.5 bg-[#17212b]">
+                <button id="chat-toggle" class="flex items-center gap-2 min-w-0 text-left hover:opacity-90">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[10px] shrink-0" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6)">CAD</div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1 text-[12px] font-semibold text-slate-100">
+                            <span class="truncate">Group Chat</span>
+                            <span id="chat-badge" class="hidden bg-red-500 text-white rounded-full px-1.5 text-[10px] leading-4">0</span>
+                        </div>
+                        <div id="chat-sub" class="text-[10px] text-slate-400 truncate">—</div>
+                    </div>
+                </button>
+                <button id="chat-name" title="अपना नाम बदलें" class="text-slate-400 hover:text-cyan-300 px-1"><i class="fa-solid fa-pen text-[10px]"></i></button>
+            </div>
+            <div id="chat-body" class="flex flex-col flex-1 min-h-0 border-t border-[#232a38]">
+                <div id="chat-msgs" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 text-[11px]"></div>
+                <div id="chat-foot" class="relative"></div>
+            </div>
         </div>
 
         <!-- Model / Layout Switcher Tabs -->
@@ -344,7 +368,8 @@
         // --- CANVAS INITIALIZATION & RESIZE ---
         function resizeCanvas() {
             const container = document.getElementById('canvas-container');
-            canvas.width = container.clientWidth;
+            const padR = parseFloat(getComputedStyle(container).paddingRight) || 0; // chat panel की जगह
+            canvas.width = container.clientWidth - padR;
             canvas.height = container.clientHeight;
             drawScene();
         }
@@ -851,7 +876,67 @@
         };
     </script>
 
-    <!-- CONNECT Realtime Database: user list, click count, active/offline -->
+    <style>
+        .tg-bub { user-select: none; -webkit-user-select: none; box-shadow: 0 1px 1px rgba(0,0,0,.25); }
+        .tg-block { display:flex; align-items:center; gap:6px; margin:2px 0; padding:5px 7px; border-radius:6px;
+                    background:rgba(0,0,0,.28); border:1px dashed rgba(255,255,255,.28); min-width:150px; }
+        .tg-open { font-size:10px; font-weight:600; padding:2px 7px; border-radius:999px; background:#0e7490; color:#fff; white-space:nowrap; }
+        .tg-open:hover { background:#0891b2; }
+        .tg-chip { font-size:11px; line-height:1; padding:3px 6px; border-radius:999px; background:rgba(255,255,255,.1); color:#e5e7eb; }
+        .tg-chip-me { background:rgba(34,211,238,.28); outline:1px solid rgba(34,211,238,.6); }
+        @keyframes tgFlash { 0%,100% { filter:none; } 30% { filter:brightness(1.9); } }
+        .tg-flash { animation: tgFlash 1.1s ease; }
+    </style>
+    <style>
+        @keyframes hintBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(9px); } }
+    </style>
+
+    <!-- पहली बार खुलने पर तीर का निशान -->
+    <div id="hint-arrow" class="fixed pointer-events-none" style="display:none; z-index:60; transition:opacity .5s;">
+        <div id="hint-arrow-icon" style="font-size:26px; line-height:1; color:#facc15; width:20px; text-align:center; animation:hintBob .8s ease-in-out infinite;">▲</div>
+        <div class="bg-amber-400 text-slate-900 text-xs font-semibold rounded-md px-3 py-2 shadow-xl">
+            यह बटन दबाकर देखें — दूसरे users अभी क्या बना रहे हैं
+        </div>
+    </div>
+
+    <!-- अन्य users की activity -->
+    <div id="others-modal" class="hidden fixed inset-0 bg-black/70 items-center justify-center p-3" style="z-index:50;">
+        <div class="bg-[#12151c] border border-[#232834] rounded-lg w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-[#232834]">
+                <div class="text-sm font-semibold text-slate-200">👥 अन्य Users की Activity</div>
+                <button id="others-close" class="px-2 py-0.5 text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+            <div class="flex flex-1 min-h-0 flex-col md:flex-row">
+                <div id="others-list" class="md:w-64 w-full md:h-full h-40 overflow-y-auto border-b md:border-b-0 md:border-r border-[#232834] p-2"></div>
+                <div class="flex-1 min-w-0 flex flex-col">
+                    <div id="others-head" class="px-3 py-2 border-b border-[#232834] text-xs text-slate-400">किसी user पर क्लिक करें</div>
+                    <div id="others-wrap" class="flex-1 relative bg-[#0a0b0e]">
+                        <canvas id="others-canvas" class="w-full h-full block"></canvas>
+                        <div id="others-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-600 pointer-events-none">ड्रॉइंग नहीं है</div>
+                    </div>
+                    <!-- इस user से अलग (private) chat -->
+                    <div id="dm-box" class="hidden flex-col border-t border-[#232a38]" style="height:16rem;">
+                        <div id="dm-title" class="px-3 py-1 text-[11px] text-slate-300 bg-[#17212b] border-b border-[#232a38]"></div>
+                        <div id="dm-msgs" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 text-[11px] bg-[#0e1621]"></div>
+                        <div id="dm-foot" class="relative"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- पहली बार नाम पूछने वाला box -->
+    <div id="name-modal" class="hidden fixed inset-0 bg-black/80 items-center justify-center p-4" style="z-index:70;">
+        <div class="bg-[#12151c] border border-[#232834] rounded-lg p-5 w-full max-w-sm shadow-2xl">
+            <div class="text-sm font-semibold text-slate-100 mb-1">आपका नाम क्या है?</div>
+            <div class="text-xs text-slate-400 mb-3">यही नाम chat और दूसरे users को दिखेगा। यह सिर्फ एक बार पूछा जाएगा।</div>
+            <input id="name-input" maxlength="15" placeholder="अपना नाम लिखें" autocomplete="off"
+                   class="w-full bg-[#07080b] border border-[#232a38] rounded px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-500">
+            <button id="name-ok" class="mt-3 w-full py-2 bg-cyan-700 hover:bg-cyan-600 text-white rounded text-sm font-medium">शुरू करें</button>
+        </div>
+    </div>
+
+    <!-- Firebase Realtime Database: user list, click count, active/offline -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script>
@@ -940,7 +1025,7 @@
                 const today = todayKey();
                 if (!v) {
                     myRef.set({
-                        name: 'User-' + uid.slice(-4),
+                        name: savedName() || ('User-' + uid.slice(-4)),
                         clicks: 0,
                         status: 'offline',
                         date: today,
@@ -953,6 +1038,7 @@
                     myRef.update({ status: 'offline' });
                 }
                 resetAllIfNewDay();
+                ensureName(v);
             });
         });
         scheduleMidnight();
@@ -992,6 +1078,781 @@
                 }
             } catch (e) {}
         }, 700);
+
+        // --- अन्य users की activity देखना ---
+        const oBtn = document.getElementById('others-btn');
+        const oBtnText = document.getElementById('others-btn-text');
+        const oModal = document.getElementById('others-modal');
+        const oList = document.getElementById('others-list');
+        const oHead = document.getElementById('others-head');
+        const oWrap = document.getElementById('others-wrap');
+        const oEmpty = document.getElementById('others-empty');
+        const oCv = document.getElementById('others-canvas');
+        const oCx = oCv.getContext('2d');
+        const hint = document.getElementById('hint-arrow');
+        let allUsers = {}, viewId = null, viewRef = null, viewEls = [];
+
+        const fmtT = ts => ts ? new Date(ts).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '-';
+
+        db.ref('users').on('value', s => {
+            allUsers = s.val() || {};
+            updGroupInfo();
+            updOthersBtn();
+            if (!oModal.classList.contains('hidden')) { renderOthers(); renderOHead(); }
+        });
+
+        function renderOthers() {
+            const ids = Object.keys(allUsers).filter(id => id !== uid).sort((a, b) => {
+                const A = allUsers[a], B = allUsers[b];
+                if ((A.status === 'active') !== (B.status === 'active')) return A.status === 'active' ? -1 : 1;
+                return (B.clicks || 0) - (A.clicks || 0);
+            });
+            oList.innerHTML = '';
+            if (!ids.length) {
+                oList.innerHTML = '<div class="text-xs text-slate-500 p-2">अभी कोई दूसरा user नहीं है</div>';
+                return;
+            }
+            ids.forEach(id => {
+                const u = allUsers[id];
+                const isActive = u.status === 'active';
+                const row = document.createElement('div');
+                row.className = 'cursor-pointer border rounded-md px-3 py-2 mb-1.5 hover:bg-[#1a2030] ' + (id === viewId ? 'bg-[#16314a] border-cyan-400' : 'border-[#232834]');
+                // pointerdown: active user का data बार-बार बदलता है और list फिर बनती है,
+                // इसलिए 'click' बीच में टूट जाता था
+                row.addEventListener('pointerdown', (e) => { e.preventDefault(); viewUser(id); });
+
+                const top = document.createElement('div');
+                top.className = 'flex items-center justify-between text-xs text-slate-200 font-medium';
+                const left = document.createElement('span');
+                left.className = 'flex items-center gap-2';
+                const dot = document.createElement('span');
+                dot.className = 'w-2 h-2 rounded-full ' + (isActive ? 'bg-green-400 animate-pulse' : 'bg-slate-600');
+                const nm = document.createElement('span');
+                nm.textContent = u.name || id;
+                left.append(makeAvatar(id, u.name, 22), dot, nm);
+                if (unreadMap[id]) {
+                    const bd = document.createElement('span');
+                    bd.className = 'bg-red-500 text-white rounded-full px-1.5 text-[10px] leading-4';
+                    bd.textContent = '💬 ' + unreadMap[id];
+                    left.append(bd);
+                }
+                const cl = document.createElement('span');
+                cl.className = 'mono text-[11px] text-cyan-300';
+                cl.textContent = (u.clicks || 0) + ' clicks';
+                top.append(left, cl);
+
+                const sub = document.createElement('div');
+                sub.className = 'text-[10px] mt-1 ' + (isActive ? 'text-green-400' : 'text-slate-500');
+                sub.textContent = (isActive ? 'अभी active' : 'offline') + ' • ' + fmtT(u.lastSeen);
+
+                row.append(top, sub);
+                oList.appendChild(row);
+            });
+        }
+
+        function renderOHead() {
+            const u = allUsers[viewId];
+            if (!u) return;
+            oHead.textContent = (u.name || viewId) + ' • ' + (u.status === 'active' ? 'अभी active' : 'offline') +
+                ' • क्लिक: ' + (u.clicks || 0) + ' • ऑब्जेक्ट: ' + viewEls.length;
+        }
+
+        function sizeO() {
+            oCv.width = oWrap.clientWidth;
+            oCv.height = oWrap.clientHeight;
+            drawO();
+        }
+        window.addEventListener('resize', () => { if (!oModal.classList.contains('hidden')) sizeO(); });
+
+        function viewUser(id) {
+            if (viewRef) viewRef.off();
+            viewId = id;
+            viewEls = [];
+            openDM(id);
+            renderOthers();
+            renderOHead();
+            viewRef = db.ref('drawings/' + id);
+            viewRef.on('value', s => {
+                const v = s.val();
+                try { viewEls = v && v.data ? JSON.parse(v.data) : []; } catch (e) { viewEls = []; }
+                oEmpty.style.display = viewEls.length ? 'none' : 'flex';
+                renderOHead();
+                drawO();
+            });
+        }
+
+        function drawO() {
+            oCx.clearRect(0, 0, oCv.width, oCv.height);
+            if (!viewEls.length) return;
+            let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+            const add = (x, y) => { if (x < x1) x1 = x; if (y < y1) y1 = y; if (x > x2) x2 = x; if (y > y2) y2 = y; };
+            viewEls.forEach(e => {
+                if (e.type === 'rect') { add(e.x, e.y); add(e.x + e.w, e.y + e.h); }
+                else if (e.type === 'circle') { add(e.cx - e.r, e.cy - e.r); add(e.cx + e.r, e.cy + e.r); }
+                else if (e.type === 'text') { add(e.x, e.y); add(e.x + 80, e.y); }
+                else if (e.x1 !== undefined) { add(e.x1, e.y1); add(e.x2, e.y2); }
+            });
+            const pad = 40;
+            const bw = Math.max(x2 - x1, 1), bh = Math.max(y2 - y1, 1);
+            const sc = Math.min((oCv.width - pad * 2) / bw, (oCv.height - pad * 2) / bh, 6);
+            oCx.save();
+            oCx.translate((oCv.width - bw * sc) / 2 - x1 * sc, (oCv.height - bh * sc) / 2 - y1 * sc);
+            oCx.scale(sc, sc);
+            viewEls.forEach(el => {
+                oCx.strokeStyle = el.color || '#809fff';
+                oCx.fillStyle = el.color || '#809fff';
+                oCx.lineWidth = (el.weight || 2) / sc;
+                if (el.style === 'dashed') oCx.setLineDash([8 / sc, 5 / sc]);
+                else if (el.style === 'dotted') oCx.setLineDash([2 / sc, 3 / sc]);
+                else oCx.setLineDash([]);
+                if (el.type === 'rect') {
+                    oCx.strokeRect(el.x, el.y, el.w, el.h);
+                } else if (el.type === 'circle') {
+                    oCx.beginPath(); oCx.arc(el.cx, el.cy, el.r, 0, Math.PI * 2); oCx.stroke();
+                } else if (el.type === 'text') {
+                    oCx.font = (14 / sc) + 'px Inter, sans-serif';
+                    oCx.fillText(el.text, el.x, el.y);
+                } else if (el.x1 !== undefined) {
+                    oCx.beginPath(); oCx.moveTo(el.x1, el.y1); oCx.lineTo(el.x2, el.y2); oCx.stroke();
+                    if (el.type === 'dim' || el.type === 'dim-radius') {
+                        oCx.font = (11 / sc) + 'px monospace';
+                        oCx.fillText(el.val + ' mm', (el.x1 + el.x2) / 2, (el.y1 + el.y2) / 2 - 4 / sc);
+                    }
+                }
+            });
+            oCx.restore();
+        }
+
+        function closeOthers() {
+            oModal.classList.add('hidden');
+            oModal.classList.remove('flex');
+            if (viewRef) { viewRef.off(); viewRef = null; }
+            viewId = null; viewEls = [];
+            closeDM();
+        }
+
+        oBtn.addEventListener('click', () => {
+            hideHint();
+            oModal.classList.remove('hidden');
+            oModal.classList.add('flex');
+            syncModal();
+            renderOthers();
+            sizeO();
+        });
+        document.getElementById('others-close').addEventListener('click', closeOthers);
+        oModal.addEventListener('mousedown', e => { if (e.target === oModal) closeOthers(); });
+
+        // --- बटन का रंग हर 1 मिनट में बदले ---
+        const palette = [
+            ['#0e7490', '#22d3ee'], ['#7c3aed', '#c4b5fd'], ['#be185d', '#f9a8d4'],
+            ['#b45309', '#fcd34d'], ['#15803d', '#86efac'], ['#1d4ed8', '#93c5fd']
+        ];
+        let ci = 0;
+        setInterval(() => {
+            ci = (ci + 1) % palette.length;
+            oBtn.style.background = palette[ci][0];
+            oBtn.style.borderColor = palette[ci][1];
+        }, 60000);
+
+        // --- खुलते ही तीर का निशान, फिर गायब ---
+        function hideHint() {
+            hint.style.opacity = '0';
+            setTimeout(() => { hint.style.display = 'none'; }, 500);
+        }
+        function showHint() {
+            const r = oBtn.getBoundingClientRect();
+            const w = 240;
+            let left = r.left + r.width / 2 - w / 2;
+            left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+            hint.style.width = w + 'px';
+            hint.style.left = left + 'px';
+            hint.style.top = (r.bottom + 4) + 'px';
+            document.getElementById('hint-arrow-icon').style.marginLeft = Math.max(0, r.left + r.width / 2 - left - 10) + 'px';
+            hint.style.opacity = '1';
+            hint.style.display = 'block';
+            setTimeout(hideHint, 7000);
+        }
+        setTimeout(showHint, 900);
+
+        // --- Group Chat: आखिरी 100 संदेश, पुराने अपने-आप delete ---
+        const MAX_MSG = 100;
+        const chatBody = document.getElementById('chat-body');
+        const chatMsgs = document.getElementById('chat-msgs');
+        const chatBadge = document.getElementById('chat-badge');
+        let chatOpen = window.innerWidth >= 700; // छोटी screen पर शुरू में बंद
+        let chatLoaded = false;
+        let unread = 0;
+
+        function updGroupInfo() {
+            const el = document.getElementById('chat-sub'); if (!el) return;
+            const ids = Object.keys(allUsers);
+            const on = ids.filter(id => allUsers[id] && allUsers[id].status === 'active').length;
+            el.textContent = ids.length + ' members, ' + on + ' online';
+        }
+        function updBadge() {
+            chatBadge.textContent = unread;
+            chatBadge.classList.toggle('hidden', unread === 0);
+        }
+        const CHAT_W = () => Math.min(288, window.innerWidth - 16);
+        function syncModal() {
+            // activity window के ऊपर भी chat खुला रहे: modal chat की चौड़ाई छोड़कर बाईं ओर रहता है
+            oModal.style.right = (!oModal.classList.contains('hidden') && chatOpen) ? CHAT_W() + 'px' : '0';
+        }
+        function placeChat() {
+            const box = document.getElementById('chat-box');
+            const hd = document.querySelector('header');
+            const ft = document.querySelector('footer');
+            const hdB = hd ? hd.getBoundingClientRect().bottom : 0;
+            const ftT = ft ? ft.getBoundingClientRect().top : window.innerHeight;
+            box.style.position = 'fixed';
+            if (chatOpen) { box.style.top = hdB + 'px'; box.style.bottom = (window.innerHeight - ftT) + 'px'; }
+            else { box.style.top = (hdB + 12) + 'px'; box.style.bottom = 'auto'; }
+        }
+        window.addEventListener('resize', placeChat);
+        function applyChat() {
+            const box = document.getElementById('chat-box');
+            const cont = document.getElementById('canvas-container');
+            const hud = document.getElementById('hud-box');
+            chatBody.classList.toggle('hidden', !chatOpen);
+            if (chatOpen) {
+                // दाईं ओर ऊपर से नीचे तक fix; CAD canvas उतना सिकुड़ जाता है (ढकता नहीं)
+                const w = CHAT_W();
+                box.classList.add('bottom-0', 'border-l');
+                box.classList.remove('rounded-lg', 'border');
+                box.style.width = w + 'px';
+                box.style.right = '0';
+                cont.style.paddingRight = w + 'px';
+                hud.style.right = (w + 16) + 'px';
+                unread = 0; updBadge();
+                chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            } else {
+                box.classList.remove('bottom-0', 'border-l');
+                box.classList.add('rounded-lg', 'border');
+                box.style.width = '200px';
+                box.style.right = '12px';
+                cont.style.paddingRight = '0';
+                hud.style.right = '16px';
+            }
+            placeChat();
+            syncModal();
+            if (typeof resizeCanvas === 'function') resizeCanvas();
+            if (!oModal.classList.contains('hidden')) sizeO();
+        }
+        document.getElementById('chat-toggle').addEventListener('click', () => { chatOpen = !chatOpen; applyChat(); });
+        applyChat();
+
+        // हर user की पहचान का रंग उसकी ID से तय होता है — हमेशा वही रहता है
+        function colorFor(id) {
+            let h = 0;
+            for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+            return 'hsl(' + (h % 360) + ',65%,42%)';
+        }
+        function makeAvatar(id, name, size) {
+            const a = document.createElement('div');
+            a.className = 'rounded-full text-white font-bold flex items-center justify-center shrink-0';
+            a.style.cssText = 'width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.5) + 'px;background:' + colorFor(id || '');
+            a.textContent = ((name || '?').trim().charAt(0) || '?').toUpperCase();
+            return a;
+        }
+
+                // ===== Telegram जैसा chat engine (group + private दोनों में एक ही) =====
+        // Image / GIF chat के अंदर BLOCK हैं (न भेज सकते, न अपने-आप दिखते) — सिर्फ "Open" दबाने पर नए tab में खुलते हैं
+        const REACTS = { h: '❤️', l: '👍', j: '😂', f: '🔥', w: '😮', s: '😢' };
+        const EMOJIS = ['😀','😂','🤣','😊','😍','😘','😎','🤔','😅','😭','😡','👍','👎','🙏','👏','🔥','❤️','💯','🎉','😴','🤝','👀','✅','❌'];
+        const BLOCK_MSG = '🚫 Image / GIF भेजना बंद है। इनका link भेजेंगे तो chat में block दिखेगा — "Open" दबाने पर ही खुलेगा।';
+        const URL_SRC = '(https?:\\/\\/[^\\s<>"\']+|data:image\\/[^\\s]+)';
+
+        function hueOf(id) { let h = 0; id = id || ''; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h % 360; }
+        function nameColor(id) { return 'hsl(' + hueOf(id) + ',75%,68%)'; }
+
+        // link किस तरह का है: 'gif' / 'image' / 'link' / null
+        function urlKind(u) {
+            if (/^data:image\//i.test(u)) return 'image';
+            try {
+                const x = new URL(u);
+                if (x.protocol !== 'http:' && x.protocol !== 'https:') return null;
+                const host = x.hostname.toLowerCase(), path = x.pathname.toLowerCase();
+                if (/\.gif$/.test(path) || /(^|\.)(giphy\.com|tenor\.com|gfycat\.com)$/.test(host)) return 'gif';
+                if (/\.(jpe?g|png|webp|bmp|svg|avif|heic|apng|tiff?|ico)$/.test(path) ||
+                    /(^|\.)(imgur\.com|pinimg\.com|i\.redd\.it|imgflip\.com|postimg\.cc|ibb\.co)$/.test(host)) return 'image';
+                return 'link';
+            } catch (e) { return null; }
+        }
+        // reply preview / copy के लिए सादा text (media link की जगह [GIF] / [Image])
+        function plain(t) {
+            return String(t || '').replace(new RegExp(URL_SRC, 'gi'), u => {
+                const k = urlKind(u); return k === 'gif' ? '[GIF]' : k === 'image' ? '[Image]' : u;
+            });
+        }
+        function mediaCard(url, kind) {
+            const c = document.createElement('div');
+            c.className = 'tg-block';
+            const ic = document.createElement('span'); ic.textContent = '🚫'; ic.style.fontSize = '16px';
+            const tx = document.createElement('div'); tx.style.cssText = 'min-width:0;flex:1';
+            const l1 = document.createElement('div'); l1.textContent = (kind === 'gif' ? 'GIF' : 'Image') + ' block है'; l1.style.cssText = 'font-size:11px;font-weight:600';
+            const l2 = document.createElement('div'); l2.style.cssText = 'font-size:9px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+            let host = ''; try { host = new URL(url).hostname; } catch (e) {}
+            l2.textContent = host || 'अंदर से बंद';
+            tx.append(l1, l2);
+            c.append(ic, tx);
+            if (/^https?:/i.test(url)) {
+                const b = document.createElement('button');
+                b.textContent = 'Open ↗';
+                b.className = 'tg-open';
+                b.addEventListener('click', e => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer'); });
+                c.appendChild(b);
+            }
+            return c;
+        }
+        function fillBody(el, text) {
+            const re = new RegExp(URL_SRC, 'gi');
+            let last = 0, m;
+            while ((m = re.exec(text))) {
+                if (m.index > last) el.append(text.slice(last, m.index));
+                const url = m[0], kind = urlKind(url);
+                if (kind === 'link') {
+                    const a = document.createElement('a');
+                    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer nofollow';
+                    a.textContent = url; a.style.cssText = 'color:#6ab3f3;text-decoration:underline';
+                    a.addEventListener('click', e => e.stopPropagation());
+                    el.appendChild(a);
+                } else if (kind) el.appendChild(mediaCard(url, kind));
+                else el.append(url);
+                last = m.index + url.length;
+            }
+            if (last < text.length) el.append(text.slice(last));
+        }
+
+        const dayFmt = ts => new Date(ts).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
+        function dayLabel(ts) {
+            const d = dayFmt(ts);
+            if (d === dayFmt(Date.now())) return 'आज';
+            if (d === dayFmt(Date.now() - 86400000)) return 'कल';
+            return d;
+        }
+        function myName() {
+            return (allUsers[uid] && allUsers[uid].name) || savedName() || ('User-' + uid.slice(-4));
+        }
+
+        function createChat(cfg) {
+            const msgsEl = cfg.msgs, foot = cfg.footer;
+            const cache = {}, rows = {};
+            let replyTo = null, barKey = null, barEl = null, nT = null;
+
+            foot.innerHTML =
+                '<div class="tg-reply items-center gap-2 px-2 py-1 bg-[#17212b] border-t border-[#232a38]" style="display:none">' +
+                    '<span class="text-cyan-400 text-[12px]">↩</span>' +
+                    '<div class="tg-rbox min-w-0 flex-1 border-l-2 pl-2"><div class="tg-rname text-[10px] font-semibold truncate"></div><div class="tg-rtext text-[10px] text-slate-400 truncate"></div></div>' +
+                    '<button class="tg-rclose text-slate-400 hover:text-white text-xs px-1" title="रद्द">✕</button>' +
+                '</div>' +
+                '<div class="tg-notice px-2 py-1 text-[10px] text-amber-300 bg-[#1b1710] border-t border-amber-900/40" style="display:none"></div>' +
+                '<div class="tg-emoji flex-wrap gap-0.5 p-1 bg-[#17212b] border-t border-[#232a38]" style="display:none"></div>' +
+                '<div class="flex items-end gap-1.5 px-2 py-2 border-t border-[#232a38] bg-[#17212b]">' +
+                    '<button class="tg-attach shrink-0 w-9 h-9 text-[18px] opacity-60 hover:opacity-100" title="Image / GIF बंद है">📎</button>' +
+                    '<textarea rows="1" class="tg-input flex-1 min-w-0 bg-[#0e1621] border border-[#232a38] rounded-2xl px-3 py-2 text-[14px] leading-5 text-slate-100 outline-none focus:border-cyan-500" style="resize:none;max-height:120px;min-height:38px;overflow-y:auto" maxlength="200" autocomplete="off"></textarea>' +
+                    '<button class="tg-emoji-btn shrink-0 w-9 h-9 text-[20px] opacity-80 hover:opacity-100" title="Emoji">😊</button>' +
+                    '<button class="tg-send shrink-0 w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-[15px]" title="भेजें">➤</button>' +
+                '</div>';
+            const $ = s => foot.querySelector(s);
+            const replyBar = $('.tg-reply'), rbox = $('.tg-rbox'), rname = $('.tg-rname'), rtext = $('.tg-rtext');
+            const nEl = $('.tg-notice'), emo = $('.tg-emoji'), inp = $('.tg-input');
+            inp.placeholder = cfg.placeholder || 'Message';
+
+            function notice(t) {
+                nEl.textContent = t; nEl.style.display = 'block';
+                clearTimeout(nT); nT = setTimeout(() => { nEl.style.display = 'none'; }, 3600);
+            }
+            function clearReply() { replyTo = null; replyBar.style.display = 'none'; }
+            function setReply(key) {
+                const m = cache[key]; if (!m) return;
+                replyTo = { k: key, u: m.uid || '', n: m.name || 'User', x: plain(m.text).slice(0, 80) };
+                rname.textContent = replyTo.n; rname.style.color = nameColor(replyTo.u);
+                rbox.style.borderColor = nameColor(replyTo.u);
+                rtext.textContent = replyTo.x;
+                replyBar.style.display = 'flex';
+                inp.focus();
+            }
+            $('.tg-rclose').addEventListener('click', clearReply);
+
+            // emoji
+            EMOJIS.forEach(e => {
+                const b = document.createElement('button');
+                b.textContent = e; b.className = 'text-[18px] w-8 h-8 hover:bg-[#232f3e] rounded';
+                b.addEventListener('click', () => {
+                    inp.setRangeText(e, inp.selectionStart, inp.selectionEnd, 'end'); inp.focus();
+                });
+                emo.appendChild(b);
+            });
+            $('.tg-emoji-btn').addEventListener('click', () => { emo.style.display = emo.style.display === 'none' ? 'flex' : 'none'; });
+
+            // image / GIF block: attach बटन, paste, drag-drop
+            $('.tg-attach').addEventListener('click', () => notice(BLOCK_MSG));
+            inp.addEventListener('paste', e => {
+                const cd = e.clipboardData;
+                if (cd && ((cd.files && cd.files.length) || Array.from(cd.items || []).some(i => i.kind === 'file'))) { e.preventDefault(); notice(BLOCK_MSG); }
+            });
+            ['dragover', 'drop'].forEach(ev => foot.parentNode.addEventListener(ev, e => {
+                if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) { e.preventDefault(); if (ev === 'drop') notice(BLOCK_MSG); }
+            }));
+
+            function submit() {
+                const text = inp.value.trim().slice(0, 200);
+                if (!text) return;
+                inp.value = ''; inp.style.height = 'auto';
+                const payload = { uid: uid, name: myName(), text: text, t: SV.TIMESTAMP };
+                if (replyTo) payload.re = replyTo;
+                clearReply();
+                emo.style.display = 'none';
+                cfg.send(payload);
+            }
+            $('.tg-send').addEventListener('click', submit);
+            const grow = () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 120) + 'px'; };
+            inp.addEventListener('input', grow);
+            // textarea में टाइप करते समय CAD के shortcut key न चलें
+            inp.addEventListener('keydown', e => {
+                e.stopPropagation();
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+            });
+            inp.addEventListener('keyup', e => e.stopPropagation());
+
+            // reactions (एक user की एक ही reaction, Telegram की तरह)
+            function react(key, code) {
+                const m = cache[key]; if (!m) return;
+                const had = m.r && m.r[code] && m.r[code][uid];
+                const upd = {};
+                cfg.paths().forEach(p => {
+                    Object.keys(REACTS).forEach(c => { if (m.r && m.r[c] && m.r[c][uid]) upd[p + '/' + key + '/r/' + c + '/' + uid] = null; });
+                    if (!had) upd[p + '/' + key + '/r/' + code + '/' + uid] = true;
+                });
+                db.ref().update(upd);
+            }
+            function del(key) {
+                const upd = {};
+                cfg.paths().forEach(p => { upd[p + '/' + key] = null; });
+                db.ref().update(upd);
+            }
+            function renderReacts(key) {
+                const w = rows[key], m = cache[key]; if (!w || !m) return;
+                const box = w._reacts; box.innerHTML = '';
+                let any = false;
+                Object.keys(REACTS).forEach(code => {
+                    const us = m.r && m.r[code] ? Object.keys(m.r[code]) : [];
+                    if (!us.length) return;
+                    any = true;
+                    const chip = document.createElement('button');
+                    chip.className = 'tg-chip' + (us.indexOf(uid) >= 0 ? ' tg-chip-me' : '');
+                    chip.textContent = REACTS[code] + ' ' + us.length;
+                    chip.addEventListener('click', e => { e.stopPropagation(); react(key, code); });
+                    box.appendChild(chip);
+                });
+                box.style.display = any ? 'flex' : 'none';
+            }
+
+            // संदेश पर tap → action bar
+            function closeBar() { if (barEl) barEl.remove(); barEl = null; barKey = null; }
+            function openBar(key) {
+                const hadSame = barKey === key;
+                closeBar();
+                if (hadSame) return;
+                const w = rows[key], m = cache[key]; if (!w || !m) return;
+                const bar = document.createElement('div');
+                bar.className = 'tg-actions flex flex-wrap items-center gap-0.5 mt-1 bg-[#17212b] border border-[#2a3444] rounded-lg px-1 py-0.5';
+                const add = (label, fn, cls) => {
+                    const b = document.createElement('button');
+                    b.className = cls || 'text-[10px] text-slate-300 hover:text-white px-1.5 py-0.5 rounded hover:bg-[#232f3e]';
+                    b.textContent = label;
+                    b.addEventListener('click', e => { e.stopPropagation(); fn(); closeBar(); });
+                    bar.appendChild(b);
+                };
+                Object.keys(REACTS).forEach(c => add(REACTS[c], () => react(key, c), 'text-[14px] hover:scale-125 transition px-0.5'));
+                add('↩ जवाब', () => setReply(key));
+                add('⧉ कॉपी', () => { try { navigator.clipboard.writeText(plain(m.text)); notice('कॉपी हो गया'); } catch (e) {} });
+                if (m.uid === uid) add('🗑 हटाएँ', () => del(key), 'text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-[#232f3e]');
+                w._col.appendChild(bar);
+                barEl = bar; barKey = key;
+                if (msgsEl.scrollTop + msgsEl.clientHeight >= msgsEl.scrollHeight - 60) msgsEl.scrollTop = msgsEl.scrollHeight;
+            }
+            document.addEventListener('click', e => {
+                if (barEl && !e.target.closest('.tg-bub') && !e.target.closest('.tg-actions')) closeBar();
+            });
+
+            function jump(key) {
+                const w = rows[key];
+                if (!w) { notice('असली संदेश अब मौजूद नहीं (पुराना हट गया)'); return; }
+                w.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                w._bub.classList.remove('tg-flash'); void w._bub.offsetWidth; w._bub.classList.add('tg-flash');
+            }
+
+            function build(key, m) {
+                const mine = m.uid === uid;
+                const w = document.createElement('div');
+                w.dataset.key = key; w.dataset.uid = m.uid || '';
+                w.dataset.day = dayFmt(m.t || Date.now());
+                w._t = m.t || Date.now(); w._mine = mine;
+
+                const sep = document.createElement('div');
+                sep.className = 'text-center my-1'; sep.style.display = 'none';
+                const sepIn = document.createElement('span');
+                sepIn.className = 'inline-block text-[10px] text-slate-300 bg-[#1b2836] rounded-full px-2 py-0.5';
+                sep.appendChild(sepIn);
+
+                const line = document.createElement('div');
+                line.className = 'flex items-end gap-1.5 ' + (mine ? 'flex-row-reverse' : '');
+                const av = makeAvatar(m.uid, m.name, 24);
+                if (mine) av.style.display = 'none';
+                const col = document.createElement('div');
+                col.className = 'min-w-0 flex flex-col ' + (mine ? 'items-end' : 'items-start');
+                col.style.maxWidth = '84%';
+
+                const bub = document.createElement('div');
+                bub.className = 'tg-bub relative rounded-lg px-2 py-1 cursor-pointer max-w-full ' + (mine ? 'bg-[#2b5278] text-white' : 'bg-[#182533] text-slate-100');
+
+                const nm = document.createElement('div');
+                nm.className = 'text-[11px] font-semibold truncate';
+                nm.textContent = m.name || 'User'; nm.style.color = nameColor(m.uid);
+                bub.appendChild(nm);
+
+                if (m.re && m.re.k) {
+                    const q = document.createElement('div');
+                    q.className = 'tg-quote mb-1 rounded px-1.5 py-0.5 cursor-pointer border-l-2';
+                    q.style.cssText = 'background:rgba(255,255,255,.08);border-color:' + nameColor(m.re.u);
+                    const qn = document.createElement('div'); qn.className = 'text-[10px] font-semibold truncate';
+                    qn.style.color = nameColor(m.re.u); qn.textContent = m.re.n || 'User';
+                    const qt = document.createElement('div'); qt.className = 'text-[10px] opacity-80 truncate'; qt.textContent = m.re.x || '';
+                    q.append(qn, qt);
+                    q.addEventListener('click', e => { e.stopPropagation(); jump(m.re.k); });
+                    bub.appendChild(q);
+                }
+
+                const row = document.createElement('div');
+                row.className = 'flex flex-wrap items-end gap-x-2';
+                const body = document.createElement('div');
+                body.className = 'tg-body min-w-0 text-[13px] whitespace-pre-wrap break-words';
+                fillBody(body, String(m.text || ''));
+                const meta = document.createElement('div');
+                meta.className = 'ml-auto flex items-center gap-1 text-[9px] leading-none shrink-0 pt-1';
+                const rc = document.createElement('span');
+                rc.className = 'text-cyan-300 cursor-pointer'; rc.style.display = 'none';
+                rc.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const f = Array.from(msgsEl.children).find(c => cache[c.dataset.key] && cache[c.dataset.key].re && cache[c.dataset.key].re.k === key);
+                    if (f) jump(f.dataset.key);
+                });
+                const tm = document.createElement('span'); tm.style.opacity = '.6'; tm.textContent = fmtT(m.t);
+                meta.append(rc, tm);
+                row.append(body, meta);
+                bub.appendChild(row);
+
+                const reacts = document.createElement('div');
+                reacts.className = 'flex flex-wrap gap-1 mt-1'; reacts.style.display = 'none';
+                bub.appendChild(reacts);
+
+                bub.addEventListener('click', e => { if (e.target.closest('a,button,.tg-quote')) return; openBar(key); });
+                bub.addEventListener('dblclick', e => { if (e.target.closest('a,button')) return; closeBar(); react(key, 'h'); });
+
+                col.appendChild(bub);
+                line.append(av, col);
+                w.append(sep, line);
+                Object.assign(w, { _sep: sep, _sepIn: sepIn, _av: av, _nm: nm, _col: col, _bub: bub, _rc: rc, _reacts: reacts });
+                return w;
+            }
+
+            // लगातार एक ही user: नाम पहले पर, avatar आखिरी पर (Telegram की तरह)
+            function layout() {
+                const kids = Array.from(msgsEl.children);
+                let prev = null;
+                kids.forEach((w, i) => {
+                    const next = kids[i + 1];
+                    const newDay = !prev || prev.dataset.day !== w.dataset.day;
+                    w._sep.style.display = newDay ? 'block' : 'none';
+                    if (newDay) w._sepIn.textContent = dayLabel(w._t);
+                    const samePrev = prev && !newDay && prev.dataset.uid === w.dataset.uid;
+                    const sameNext = next && next.dataset.day === w.dataset.day && next.dataset.uid === w.dataset.uid;
+                    w._nm.style.display = (!w._mine && !samePrev) ? 'block' : 'none';
+                    w._av.style.visibility = sameNext ? 'hidden' : 'visible';
+                    w.style.marginTop = samePrev ? '1px' : '6px';
+                    prev = w;
+                });
+            }
+            function recount() {
+                const cnt = {};
+                Object.keys(cache).forEach(k => { const r = cache[k].re; if (r && r.k) cnt[r.k] = (cnt[r.k] || 0) + 1; });
+                Object.keys(rows).forEach(k => {
+                    const n = cnt[k] || 0, rc = rows[k]._rc;
+                    rc.style.display = n ? 'inline' : 'none'; rc.textContent = '↩ ' + n;
+                });
+            }
+
+            return {
+                add(key, m) {
+                    if (rows[key]) return false;
+                    cache[key] = m;
+                    const atBottom = msgsEl.scrollTop + msgsEl.clientHeight >= msgsEl.scrollHeight - 30;
+                    const w = build(key, m);
+                    rows[key] = w;
+                    msgsEl.appendChild(w);
+                    renderReacts(key); layout(); recount();
+                    const mine = m.uid === uid;
+                    if (atBottom || mine) msgsEl.scrollTop = msgsEl.scrollHeight;
+                    if (cfg.onAdd) cfg.onAdd(key, m, mine);
+                    return mine;
+                },
+                change(key, m) { if (!rows[key]) return; cache[key] = m; renderReacts(key); },
+                remove(key) {
+                    const w = rows[key]; if (!w) return;
+                    if (barKey === key) closeBar();
+                    w.remove(); delete rows[key]; delete cache[key];
+                    layout(); recount();
+                },
+                reset() {
+                    closeBar(); clearReply();
+                    msgsEl.innerHTML = '';
+                    Object.keys(cache).forEach(k => delete cache[k]);
+                    Object.keys(rows).forEach(k => delete rows[k]);
+                },
+                focus() { inp.focus(); }
+            };
+        }
+
+        const groupChat = createChat({
+            msgs: chatMsgs,
+            footer: document.getElementById('chat-foot'),
+            placeholder: 'संदेश लिखें…',
+            paths: () => ['chat'],
+            send: payload => db.ref('chat').push(payload).then(trimChat),
+            onAdd: (key, m, mine) => { if (chatLoaded && !chatOpen && !mine) { unread++; updBadge(); } }
+        });
+
+        const chatQuery = db.ref('chat').orderByKey().limitToLast(MAX_MSG);
+        chatQuery.on('child_added', s => groupChat.add(s.key, s.val()));
+        chatQuery.on('child_changed', s => groupChat.change(s.key, s.val()));
+        chatQuery.on('child_removed', s => groupChat.remove(s.key));
+        chatQuery.once('value').then(() => { chatLoaded = true; });
+
+        // 100 से ज़्यादा होने पर सबसे पुराने संदेश Firebase से हटाएँ
+        function trimChat() {
+            db.ref('chat').orderByKey().once('value').then(s => {
+                const extra = s.numChildren() - MAX_MSG;
+                if (extra <= 0) return;
+                const upd = {};
+                let i = 0;
+                s.forEach(c => { if (i++ < extra) upd[c.key] = null; });
+                db.ref('chat').update(upd);
+            });
+        }
+
+
+        document.getElementById('chat-name').addEventListener('click', () => {
+            const cur = (allUsers[uid] && allUsers[uid].name) || '';
+            const nn = prompt('अपना नाम लिखें (अधिकतम 15 अक्षर):', cur);
+            if (nn && nn.trim()) { const f = nn.trim().slice(0, 15); saveName(f); myRef.update({ name: f }); }
+        });
+
+        setTimeout(trimChat, 3000);
+
+        // --- नाम: सिर्फ पहली बार पूछा जाता है ---
+        function savedName() {
+            try { return localStorage.getItem('cad_name') || ''; } catch (e) { return ''; }
+        }
+        function saveName(n) {
+            try { localStorage.setItem('cad_name', n); } catch (e) {}
+        }
+        function askName() {
+            const m = document.getElementById('name-modal');
+            const inp = document.getElementById('name-input');
+            const ok = document.getElementById('name-ok');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => inp.focus(), 100);
+            const submit = () => {
+                const n = inp.value.trim().slice(0, 15);
+                if (!n) { inp.focus(); return; }
+                saveName(n);
+                myRef.update({ name: n });
+                m.classList.add('hidden'); m.classList.remove('flex');
+            };
+            ok.onclick = submit;
+            inp.onkeydown = e => { if (e.key === 'Enter') submit(); };
+        }
+        function ensureName(v) {
+            const custom = v && v.name && !/^User-/.test(v.name) && v.name !== uid;
+            const saved = savedName();
+            if (saved) { if (!custom || v.name !== saved) myRef.update({ name: saved }); return; }
+            if (custom) { saveName(v.name); return; } // पहले से नाम है — दोबारा नहीं पूछना
+            askName();
+        }
+
+        // --- किसी भी user को अलग (private) संदेश ---
+        let unreadMap = {}, dmTotal = 0, dmId = null, dmQuery = null;
+        const dmBox = document.getElementById('dm-box');
+        const dmMsgs = document.getElementById('dm-msgs');
+        const dmTitle = document.getElementById('dm-title');
+
+        function updOthersBtn() {
+            const n = Object.keys(allUsers).filter(id => id !== uid && allUsers[id].status === 'active').length;
+            oBtnText.textContent = 'अन्य Users' + (n ? ' (' + n + ' active)' : '') + (dmTotal ? ' • 💬' + dmTotal : '');
+        }
+
+        const dmChat = createChat({
+            msgs: dmMsgs,
+            footer: document.getElementById('dm-foot'),
+            placeholder: 'इस user को संदेश लिखें…',
+            paths: () => dmId ? ['dm/' + uid + '/' + dmId, 'dm/' + dmId + '/' + uid] : [],
+            send: msg => sendDM(msg)
+        });
+
+        function closeDM() {
+            if (dmQuery) { dmQuery.off(); dmQuery = null; }
+            dmId = null;
+            dmBox.classList.add('hidden'); dmBox.classList.remove('flex');
+        }
+
+        function openDM(id) {
+            if (dmQuery) { dmQuery.off(); dmQuery = null; }
+            dmId = id;
+            dmChat.reset();
+            dmBox.classList.remove('hidden'); dmBox.classList.add('flex');
+            dmTitle.textContent = '💬 ' + ((allUsers[id] && allUsers[id].name) || id) + ' से चैट';
+            dmQuery = db.ref('dm/' + uid + '/' + id).orderByKey().limitToLast(MAX_MSG);
+            dmQuery.on('child_added', s => dmChat.add(s.key, s.val()));
+            dmQuery.on('child_changed', s => dmChat.change(s.key, s.val()));
+            dmQuery.on('child_removed', s => dmChat.remove(s.key));
+            db.ref('unread/' + uid + '/' + id).remove();
+            sizeO();
+        }
+
+        function trimDM(a, b) {
+            db.ref('dm/' + a + '/' + b).orderByKey().once('value').then(s => {
+                const extra = s.numChildren() - MAX_MSG;
+                if (extra <= 0) return;
+                const upd = {};
+                let i = 0;
+                s.forEach(c => { if (i++ < extra) upd[c.key] = null; });
+                db.ref('dm/' + a + '/' + b).update(upd);
+            });
+        }
+
+        function sendDM(msg) {
+            if (!dmId) return;
+            const other = dmId;
+            const key = db.ref('dm/' + uid + '/' + other).push().key;
+            const upd = {};
+            upd['dm/' + uid + '/' + other + '/' + key] = msg;
+            upd['dm/' + other + '/' + uid + '/' + key] = msg;
+            upd['unread/' + other + '/' + uid] = SV.increment(1);
+            db.ref().update(upd).then(() => { trimDM(uid, other); trimDM(other, uid); });
+        }
+
+        // मुझे आए नए private संदेशों की गिनती
+        db.ref('unread/' + uid).on('value', s => {
+            unreadMap = s.val() || {};
+            if (dmId && unreadMap[dmId] && !oModal.classList.contains('hidden')) {
+                db.ref('unread/' + uid + '/' + dmId).remove(); // जिससे चैट खुली है उसे पढ़ा हुआ मानें
+                delete unreadMap[dmId];
+            }
+            dmTotal = Object.values(unreadMap).reduce((a, b) => a + (+b || 0), 0);
+            updOthersBtn();
+            if (!oModal.classList.contains('hidden')) renderOthers();
+        });
 
         // --- 12 AM reset होने पर यहाँ का canvas भी साफ ---
         let firstResetEvent = true;
