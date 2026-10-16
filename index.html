@@ -135,9 +135,13 @@
 
         <!-- Session Status -->
         <div class="flex items-center gap-3">
+            <div id="presence-pill" class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-slate-300">
+                <span id="presence-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="presence-text">Connect कनेक्ट हो रहा है…</span>
+            </div>
             <div class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-amber-400">
                 <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>अस्थायी सत्र (Volatile - नो ऑटो-सेव)</span>
+                <span>अस्थायी सत्र (NON SAVE - नो ऑटो-सेव)</span>
             </div>
         </div>
     </header>
@@ -507,6 +511,12 @@
 
         canvas.addEventListener('mouseup', () => { isPanning = false; });
 
+        // Right-click also ends the running line
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            endChain();
+        });
+
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const zoomFactor = 1.15;
@@ -533,6 +543,12 @@
         // --- KEYBOARD SHORTCUTS ---
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT') return; // Ignore when typing in input
+
+            // Chain drawing controls
+            if (isDrawing && (currentTool === 'line' || currentTool === 'polyline')) {
+                if (e.key === 'Enter') { e.preventDefault(); endChain(); return; }
+                if (e.key === 'Backspace') { e.preventDefault(); chainBack(); return; }
+            }
             
             // All Delete shortcut: Ctrl + Shift + Delete
             if (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
@@ -541,6 +557,7 @@
             } else if (e.key === 'Delete' || e.key === 'Backspace') {
                 handleDeleteAction();
             } else if (e.key === 'Escape') {
+                endChain();
                 isDrawing = false;
                 clearSelection();
                 logCommand('क्रिया रद्द की गई');
@@ -563,7 +580,9 @@
                 layer: currentLayer
             };
 
-            if (currentTool === 'line') {
+            if (currentTool === 'line' || currentTool === 'polyline') {
+                if (Math.hypot(endX - startX, endY - startY) < 0.5) { historyStack.pop(); return; } // ignore zero-length (double click)
+                elem.type = 'line';
                 elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
             } else if (currentTool === 'rect') {
                 elem.x = Math.min(startX, endX); elem.y = Math.min(startY, endY);
@@ -582,11 +601,47 @@
             }
 
             elements.push(elem);
+
+            if (currentTool === 'line' || currentTool === 'polyline') {
+                // CHAIN MODE: point is fixed, next line starts from here. Enter/Esc ends.
+                startX = endX; startY = endY;
+                currentX = endX; currentY = endY;
+                isDrawing = true;
+                selectedIndex = -1;
+                updateSelectionUI();
+                drawScene();
+                logCommand('बिंदु फिक्स हुआ — अगला बिंदु क्लिक करें। Enter = लाइन समाप्त, Backspace = आखिरी बिंदु हटाएँ।');
+                return;
+            }
+
             isDrawing = false;
             selectedIndex = elements.length - 1;
             updateSelectionUI();
             drawScene();
             logCommand(`नयी ${currentTool.toUpperCase()} वस्तु बनाई गई।`);
+        }
+
+        // End the running line chain (Enter / Esc / right-click)
+        function endChain() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            selectedIndex = -1;
+            updateSelectionUI();
+            drawScene();
+            logCommand('लाइन समाप्त की गई।');
+        }
+
+        // Remove the last segment of the chain and step back one point
+        function chainBack() {
+            if (elements.length === 0) { endChain(); return; }
+            const last = elements[elements.length - 1];
+            if (last.type !== 'line') { endChain(); return; }
+            elements.pop();
+            startX = last.x1; startY = last.y1;
+            currentX = startX; currentY = startY;
+            updateSelectionUI();
+            drawScene();
+            logCommand('आखिरी बिंदु हटाया गया।');
         }
 
         // --- DRAWING RENDER LOOP ---
@@ -608,7 +663,7 @@
                 ctx.strokeStyle = '#38bdf8';
                 ctx.lineWidth = strokeWeight / scale;
                 ctx.setLineDash([4 / scale, 4 / scale]);
-                if (currentTool === 'line' || currentTool === 'dim') {
+                if (currentTool === 'line' || currentTool === 'polyline' || currentTool === 'dim') {
                     ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(currentX, currentY); ctx.stroke();
                 } else if (currentTool === 'rect') {
                     ctx.strokeRect(Math.min(startX, currentX), Math.min(startY, currentY), Math.abs(currentX - startX), Math.abs(currentY - startY));
@@ -776,7 +831,7 @@
             const cmd = input.value.trim().toLowerCase();
             input.value = '';
 
-            if (!cmd) return;
+            if (!cmd) { endChain(); return; } // Enter on empty command line also ends the line
 
             if (cmd === 'line' || cmd === 'l') setTool('line');
             else if (cmd === 'rect' || cmd === 'rec') setTool('rect');
@@ -794,6 +849,163 @@
             updateStrokeProps();
             updateSelectionUI();
         };
+    </script>
+
+    <!-- CONNECT Realtime Database: user list, click count, active/offline -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script>
+    (function () {
+        const DATABASE_URL = 'https://neetjee-ca8f5-default-rtdb.firebaseio.com';
+        const ACTIVE_TIMEOUT = 10000;      // इतने ms तक क्लिक न हो तो offline
+        const IST_OFFSET = 5.5 * 3600 * 1000;
+
+        const dot = document.getElementById('presence-dot');
+        const txt = document.getElementById('presence-text');
+
+        // आज की तारीख (IST) — 12 AM पर यही बदलती है
+        const todayKey = () => new Date(Date.now() + IST_OFFSET).toISOString().slice(0, 10);
+
+        function setPill(status, clicks) {
+            const active = status === 'active';
+            dot.className = 'w-2 h-2 rounded-full ' + (active ? 'bg-green-400 animate-pulse' : 'bg-slate-500');
+            txt.textContent = (active ? 'active' : 'offline') + ' • क्लिक: ' + clicks;
+        }
+
+        if (typeof firebase === 'undefined') {
+            txt.textContent = 'Firebase लोड नहीं हुआ';
+            return;
+        }
+
+        firebase.initializeApp({ databaseURL: DATABASE_URL });
+        const db = firebase.database();
+        const SV = firebase.database.ServerValue;
+
+        // हर user की स्थायी ID (इसी browser में)
+        let uid = null;
+        try { uid = localStorage.getItem('cad_uid'); } catch (e) {}
+        if (!uid) {
+            uid = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+            try { localStorage.setItem('cad_uid', uid); } catch (e) {}
+        }
+
+        const myRef = db.ref('users/' + uid);
+        let myDate = todayKey();
+        let myClicks = 0;
+        let idleTimer = null;
+
+        // अपना रिकॉर्ड live सुनें
+        myRef.on('value', snap => {
+            const v = snap.val();
+            if (!v) return;
+            myDate = v.date || myDate;
+            myClicks = v.clicks || 0;
+            setPill(v.status, myClicks);
+        });
+
+        // --- 12 AM (IST) पर सभी users का count 0 ---
+        function resetAllIfNewDay() {
+            const today = todayKey();
+            db.ref('meta/lastReset').transaction(cur => (cur === today ? undefined : today), (err, committed) => {
+                if (err || !committed) return; // किसी और ने आज reset कर दिया
+                db.ref('users').once('value').then(snap => {
+                    const updates = {};
+                    snap.forEach(child => {
+                        updates[child.key + '/clicks'] = 0;
+                        updates[child.key + '/date'] = today;
+                    });
+                    if (Object.keys(updates).length) db.ref('users').update(updates);
+                    // 12 AM: सभी drawings और history भी delete
+                    db.ref('drawings').remove();
+                    db.ref('history').remove();
+                });
+            });
+        }
+
+        function scheduleMidnight() {
+            const now = Date.now();
+            const nextMidnight = (Math.floor((now + IST_OFFSET) / 86400000) + 1) * 86400000 - IST_OFFSET;
+            setTimeout(() => { resetAllIfNewDay(); scheduleMidnight(); }, nextMidnight - now + 500);
+        }
+
+        // --- कनेक्शन / presence ---
+        db.ref('.info/connected').on('value', snap => {
+            if (snap.val() !== true) return;
+
+            // tab बंद / net कटने पर अपने-आप offline
+            myRef.onDisconnect().update({ status: 'offline', lastSeen: SV.TIMESTAMP });
+
+            myRef.once('value').then(s => {
+                const v = s.val();
+                const today = todayKey();
+                if (!v) {
+                    myRef.set({
+                        name: 'User-' + uid.slice(-4),
+                        clicks: 0,
+                        status: 'offline',
+                        date: today,
+                        firstSeen: SV.TIMESTAMP,
+                        lastSeen: SV.TIMESTAMP
+                    });
+                } else if (v.date !== today) {
+                    myRef.update({ clicks: 0, date: today, status: 'offline' });
+                } else {
+                    myRef.update({ status: 'offline' });
+                }
+                resetAllIfNewDay();
+            });
+        });
+        scheduleMidnight();
+
+        // --- हर click गिनें ---
+        function goOffline() {
+            myRef.update({ status: 'offline', lastSeen: SV.TIMESTAMP });
+        }
+
+        document.addEventListener('mousedown', () => {
+            const today = todayKey();
+            const base = { status: 'active', lastActive: SV.TIMESTAMP, lastSeen: SV.TIMESTAMP, date: today };
+            if (myDate !== today) {
+                myDate = today;
+                base.clicks = 1; // नया दिन — 0 से शुरू
+            } else {
+                base.clicks = SV.increment(1);
+            }
+            myRef.update(base);
+
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(goOffline, ACTIVE_TIMEOUT);
+        }, true);
+
+        // --- Drawing (diagram) Firebase में sync ---
+        let lastSynced = '';
+        setInterval(() => {
+            try {
+                const s = JSON.stringify(elements);
+                if (s === lastSynced) return;
+                lastSynced = s;
+
+                if (elements.length) {
+                    db.ref('drawings/' + uid).set({ data: s, count: elements.length, updated: SV.TIMESTAMP });
+                } else {
+                    db.ref('drawings/' + uid).remove();
+                }
+            } catch (e) {}
+        }, 700);
+
+        // --- 12 AM reset होने पर यहाँ का canvas भी साफ ---
+        let firstResetEvent = true;
+        db.ref('meta/lastReset').on('value', () => {
+            if (firstResetEvent) { firstResetEvent = false; return; }
+            elements = []; selectedIndex = -1; isDrawing = false;
+            historyStack = []; redoStack = [];
+            lastSynced = '';
+            updateSelectionUI(); drawScene();
+        });
+
+        // tab छिपाने/बंद करने पर offline
+        window.addEventListener('pagehide', goOffline);
+    })();
     </script>
 </body>
 </html>
