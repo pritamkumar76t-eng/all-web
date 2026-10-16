@@ -140,11 +140,11 @@
             </button>
             <div id="presence-pill" class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-slate-300">
                 <span id="presence-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
-                <span id="presence-text">Connecting कनेक्ट हो रहा है…</span>
+                <span id="presence-text">Firebase कनेक्ट हो रहा है…</span>
             </div>
             <div class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-amber-400">
                 <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>अस्थायी सत्र (Non - नो ऑटो-सेव)</span>
+                <span>अस्थायी सत्र (Connecting - नो ऑटो-सेव)</span>
             </div>
         </div>
     </header>
@@ -244,9 +244,13 @@
         <div class="ribbon-panel min-w-[140px]">
             <div class="flex items-center justify-between gap-2 mb-1 px-1">
                 <div class="flex items-center gap-1.5">
-                    <input type="color" id="stroke-color" value="#809fff" onchange="updateStrokeProps()" class="w-5 h-5 bg-transparent cursor-pointer rounded border-0">
+                    <input type="color" id="stroke-color" value="#809fff" oninput="updateStrokeProps()" onchange="updateStrokeProps()" class="w-5 h-5 bg-transparent cursor-pointer rounded border-0">
                     <span id="color-rgb" class="text-[10px] text-slate-300 mono">128, 159, 255</span>
                 </div>
+            </div>
+            <div class="flex items-center gap-2 mb-1 px-1">
+                <label class="flex items-center gap-1 text-[10px] text-slate-300 cursor-pointer"><input type="checkbox" id="fill-on" onchange="updateStrokeProps()"> भरें (Fill)</label>
+                <input type="color" id="fill-color" value="#1e6fd9" oninput="updateStrokeProps()" onchange="updateStrokeProps()" class="w-5 h-5 bg-transparent cursor-pointer rounded border-0">
             </div>
             <div class="grid grid-cols-2 gap-1">
                 <select id="stroke-style" onchange="updateStrokeProps()" class="bg-[#101218] border border-[#2a3140] text-slate-200 text-[10px] rounded px-1 py-0.5 outline-none">
@@ -269,6 +273,11 @@
     <!-- Main Canvas Viewport Area -->
     <div class="relative flex-1 w-full h-full bg-[#0a0b0e] overflow-hidden" id="canvas-container">
         <canvas id="cadCanvas" class="w-full h-full"></canvas>
+
+        <div id="draw-actions" class="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 hidden gap-2">
+            <button id="btn-finish" onclick="endChain()" class="px-4 py-2 rounded-full bg-cyan-600 text-white text-sm font-semibold shadow-lg">✓ पूरा करें</button>
+            <button onclick="cancelDraft()" class="px-4 py-2 rounded-full bg-slate-700 text-white text-sm shadow-lg">✕ रद्द</button>
+        </div>
 
         <!-- Notification Toast Container -->
         <div id="toast-container" class="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-2"></div>
@@ -300,21 +309,12 @@
                         <div id="chat-sub" class="text-[10px] text-slate-400 truncate">—</div>
                     </div>
                 </button>
-                <button id="chat-name" title="अपना नाम बदलें" class="text-slate-400 hover:text-cyan-300 px-1"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                <button id="chat-close" title="Chat बंद करें (ऊपर चला जाएगा)" class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-500 text-white shadow"><i class="fa-solid fa-xmark text-[11px]"></i></button>
             </div>
             <div id="chat-body" class="flex flex-col flex-1 min-h-0 border-t border-[#232a38]">
                 <div id="chat-msgs" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 text-[11px]"></div>
                 <div id="chat-foot" class="relative"></div>
             </div>
-        </div>
-
-        <!-- Model / Layout Switcher Tabs -->
-        <div class="absolute bottom-4 left-4 flex gap-1 bg-[#12151d]/90 border border-[#232a38] rounded-lg p-1 text-xs text-slate-300 shadow-2xl backdrop-blur">
-            <button class="px-3 py-1 bg-cyan-700 text-white font-medium rounded shadow-sm flex items-center gap-1.5">
-                <i class="fa-solid fa-cube text-[10px]"></i> मॉडल (Model)
-            </button>
-            <button class="px-3 py-1 hover:bg-[#1e2430] rounded transition">लेआउट 1</button>
-            <button class="px-3 py-1 hover:bg-[#1e2430] rounded transition">लेआउट 2</button>
         </div>
     </div>
 
@@ -322,7 +322,8 @@
     <footer class="bg-[#101218] border-t border-[#232834] px-3 py-2 flex flex-col gap-1 text-xs z-20">
         <div id="command-history" class="text-slate-400 mono h-5 overflow-hidden flex items-center gap-2 text-[11px]">
             <span class="text-cyan-500 font-bold">[AutoCAD Web Studio]:</span>
-            <span id="history-text">कमांड टाइप करें या ऊपर Ribbon से टूल चुनें (उदा: LINE, RECT, CIRCLE, SELECT, DELETE, CLEAR)</span>
+            <span id="history-text" class="truncate min-w-0">कमांड टाइप करें या ऊपर Ribbon से टूल चुनें (उदा: LINE, RECT, CIRCLE, SELECT, DELETE, CLEAR)</span>
+            <span id="exit-hint" class="hidden ml-auto shrink-0 whitespace-nowrap text-[10px] font-semibold text-red-500"><i class="fa-solid fa-circle-xmark mr-1"></i>छोड़ने के लिए Enter दबाएँ</span>
         </div>
         <div class="flex items-center gap-2">
             <span class="text-cyan-400 font-bold tracking-wider mono text-xs">कमांड लिखें:</span>
@@ -340,30 +341,35 @@
         // --- CAD ENGINE STATE ---
         const canvas = document.getElementById('cadCanvas');
         const ctx = canvas.getContext('2d');
+        canvas.style.touchAction = 'none'; // mobile पर drag/tap ठीक से चले
 
         let currentTool = 'line';
-        let strokeColor = '#809fff';
-        let strokeStyle = 'solid';
-        let strokeWeight = 2;
+        let strokeColor = '#809fff', strokeStyle = 'solid', strokeWeight = 2;
+        let fillColor = null;
         let currentLayer = 'steel';
 
-        let elements = []; // In-memory session objects only
-        let selectedIndex = -1; // Single element selection index
-        let historyStack = [];
-        let redoStack = [];
+        let elements = [], selectedIndex = -1, historyStack = [], redoStack = [];
+        let scale = 1.0, panX = 0, panY = 0, isPanning = false, startPanX = 0, startPanY = 0;
 
-        // Pan and Zoom
-        let scale = 1.0;
-        let panX = 0;
-        let panY = 0;
-        let isPanning = false;
-        let startPanX = 0;
-        let startPanY = 0;
+        // Drawing state: draft = अब तक क्लिक किए गए बिंदु (world coordinates)
+        let draft = [], cursor = { x: 0, y: 0 }, downScreen = null, justStarted = false, chainCount = 0, propUndoSel = null;
 
-        // Interactive Drawing State
-        let isDrawing = false;
-        let startX = 0, startY = 0;
-        let currentX = 0, currentY = 0;
+        // हर टूल की सेटिंग: n = कितने क्लिक चाहिए, multi = जितने चाहें उतने बिंदु, chain = लगातार लाइन
+        const TOOLS = {
+            line:     { n: 2, chain: true, msg: 'रेखा: पहला बिंदु क्लिक करें, फिर दूसरा। रुकने के लिए ✓ / Enter।' },
+            polyline: { multi: true, min: 2, msg: 'पॉलीलाइन: बिंदुओं पर क्लिक करें, पूरा होने पर ✓ / Enter / डबल-क्लिक।' },
+            circle:   { n: 2, msg: 'वृत्त: केंद्र क्लिक करें, फिर त्रिज्या तक क्लिक/ड्रैग करें।' },
+            ellipse:  { n: 2, msg: 'दीर्घवृत्त: एक कोना क्लिक करें, फिर विपरीत कोना।' },
+            arc:      { n: 3, msg: 'चाप: शुरुआत, फिर अंत, फिर बीच का बिंदु क्लिक करें।' },
+            polygon:  { multi: true, min: 3, msg: 'बहुभुज: कोनों पर क्लिक करें, बंद करने के लिए ✓ / Enter।' },
+            rect:     { n: 2, msg: 'आयत: एक कोना क्लिक करें, फिर विपरीत कोना।' },
+            spline:   { multi: true, min: 2, msg: 'स्प्लाइन: बिंदुओं पर क्लिक करें, पूरा होने पर ✓ / Enter।' },
+            hatch:    { multi: true, min: 3, msg: 'हैचिंग: क्षेत्र के कोनों पर क्लिक करें, भरने के लिए ✓ / Enter।' },
+            point:    { n: 1, msg: 'बिंदु: जहाँ चाहें क्लिक करें।' },
+            dim:      { n: 2, msg: 'मापन: दो बिंदु क्लिक करें।' },
+            'dim-radius': { n: 2, msg: 'त्रिज्या मापन: दो बिंदु क्लिक करें।' },
+            text:     { n: 1, msg: 'पाठ: जहाँ लिखना है वहाँ क्लिक करें।' }
+        };
 
         // --- CANVAS INITIALIZATION & RESIZE ---
         function resizeCanvas() {
@@ -378,41 +384,56 @@
         // --- TOOL SWITCHING ---
         function setTool(toolName) {
             currentTool = toolName;
+            draft = []; chainCount = 0;
             document.querySelectorAll('.cad-btn').forEach(btn => btn.classList.remove('active'));
             const activeBtn = document.getElementById('tool-' + toolName);
             if (activeBtn) activeBtn.classList.add('active');
-            
-            logCommand(`टूल चुना गया: ${toolName.toUpperCase()}`);
-            if (toolName !== 'select' && toolName !== 'move') {
-                // Keep active selection unless drawing new shape
-            }
+            if (TOOLS[toolName]) { selectedIndex = -1; updateSelectionUI(); logCommand(TOOLS[toolName].msg); }
+            else if (toolName === 'select' || toolName === 'move') logCommand('वस्तु चुनने के लिए उस पर क्लिक करें, फिर रंग/स्टाइल बदलें।');
+            else logCommand(`टूल चुना गया: ${toolName.toUpperCase()} (यह टूल अभी उपलब्ध नहीं)`);
+            updateExitHint();
             drawScene();
+        }
+        function updateExitHint() {
+            const h = document.getElementById('exit-hint');
+            if (h) h.classList.toggle('hidden', !TOOLS[currentTool]);
+        }
+        updateExitHint();
+
+        // --- रंग / स्टाइल: चुनी हुई वस्तु पर लागू + नई वस्तुओं के लिए ---
+        function setRgbText() {
+            const hex = strokeColor.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16) || 0, g = parseInt(hex.substring(2, 4), 16) || 0, b = parseInt(hex.substring(4, 6), 16) || 0;
+            document.getElementById('color-rgb').innerText = `${r}, ${g}, ${b}`;
         }
 
         function updateStrokeProps() {
             strokeColor = document.getElementById('stroke-color').value;
             strokeStyle = document.getElementById('stroke-style').value;
             strokeWeight = parseInt(document.getElementById('stroke-weight').value, 10);
+            fillColor = document.getElementById('fill-on').checked ? document.getElementById('fill-color').value : null;
+            setRgbText();
 
-            // Hex to RGB text representation
-            const hex = strokeColor.replace('#', '');
-            const r = parseInt(hex.substring(0, 2), 16) || 0;
-            const g = parseInt(hex.substring(2, 4), 16) || 0;
-            const b = parseInt(hex.substring(4, 6), 16) || 0;
-            document.getElementById('color-rgb').innerText = `${r}, ${g}, ${b}`;
-
-            if (selectedIndex !== -1) {
-                elements[selectedIndex].color = strokeColor;
-                elements[selectedIndex].style = strokeStyle;
-                elements[selectedIndex].weight = strokeWeight;
+            if (selectedIndex !== -1 && elements[selectedIndex]) {
+                if (propUndoSel !== selectedIndex) { saveUndoState(); propUndoSel = selectedIndex; } // एक बदलाव = एक undo
+                const el = elements[selectedIndex];
+                el.color = strokeColor; el.style = strokeStyle; el.weight = strokeWeight; el.fill = fillColor;
             }
             drawScene();
         }
 
-        function changeLayer(val) {
-            currentLayer = val;
-            logCommand(`परत बदली गई: ${val}`);
+        function syncPropsFromEl(el) {
+            strokeColor = el.color || strokeColor; strokeStyle = el.style || 'solid'; strokeWeight = el.weight || 2;
+            fillColor = el.fill || null;
+            document.getElementById('stroke-color').value = strokeColor;
+            document.getElementById('stroke-style').value = strokeStyle;
+            document.getElementById('stroke-weight').value = String(strokeWeight);
+            document.getElementById('fill-on').checked = !!fillColor;
+            if (fillColor) document.getElementById('fill-color').value = fillColor;
+            setRgbText();
         }
+
+        function changeLayer(val) { currentLayer = val; logCommand(`परत बदली गई: ${val}`); }
 
         function showToast(msg, isError = false) {
             const container = document.getElementById('toast-container');
@@ -423,371 +444,208 @@
             setTimeout(() => toast.remove(), 2500);
         }
 
-        function logCommand(msg) {
-            document.getElementById('history-text').innerText = msg;
-        }
+        function logCommand(msg) { document.getElementById('history-text').innerText = msg; }
 
-        // --- DELETE & CLEAR LOGIC (USER ISSUE FIX) ---
+        // --- DELETE & CLEAR ---
         function handleDeleteAction() {
             if (selectedIndex !== -1) {
-                // Delete currently selected object
                 saveUndoState();
-                const removed = elements.splice(selectedIndex, 1);
-                selectedIndex = -1;
-                updateSelectionUI();
-                drawScene();
+                elements.splice(selectedIndex, 1);
+                selectedIndex = -1; propUndoSel = null;
+                updateSelectionUI(); drawScene();
                 logCommand('चयनित वस्तु सफलतापूर्वक हटा दी गई।');
                 showToast('1 वस्तु हटाई गई');
             } else if (elements.length > 0) {
-                // If no selection, confirm clear all or prompt user
-                if (confirm('कोई विशिष्ट वस्तु चयनित नहीं है। क्या आप पूरे कैनवास को साफ करना चाहते हैं?')) {
-                    triggerClearAll();
-                }
+                if (confirm('कोई विशिष्ट वस्तु चयनित नहीं है। क्या आप पूरे कैनवास को साफ करना चाहते हैं?')) triggerClearAll();
             } else {
                 showToast('कैनवास में हटाने के लिए कोई वस्तु नहीं है।', true);
             }
         }
 
         function triggerClearAll() {
-            if (elements.length === 0) {
-                showToast('कैनवास पहले से खाली है।', true);
-                return;
-            }
+            if (elements.length === 0) { showToast('कैनवास पहले से खाली है।', true); return; }
             saveUndoState();
-            elements = [];
-            selectedIndex = -1;
-            updateSelectionUI();
-            drawScene();
+            elements = []; selectedIndex = -1; draft = []; propUndoSel = null;
+            updateSelectionUI(); drawScene();
             logCommand('पूरा कैनवास साफ कर दिया गया।');
             showToast('पूरा कैनवास हटा दिया गया');
         }
 
-        function clearSelection() {
-            selectedIndex = -1;
-            updateSelectionUI();
-            drawScene();
-        }
+        function clearSelection() { selectedIndex = -1; propUndoSel = null; updateSelectionUI(); drawScene(); }
 
         function updateSelectionUI() {
             const statusPill = document.getElementById('selection-status');
-            if (selectedIndex !== -1) {
+            if (selectedIndex !== -1 && elements[selectedIndex]) {
                 statusPill.classList.remove('hidden');
-                const el = elements[selectedIndex];
-                document.getElementById('selection-text').innerText = `1 वस्तु चयनित (${el.type.toUpperCase()})`;
+                document.getElementById('selection-text').innerText = `1 वस्तु चयनित (${elements[selectedIndex].type.toUpperCase()})`;
             } else {
                 statusPill.classList.add('hidden');
             }
             document.getElementById('hud-elements').innerText = `ऑब्जेक्ट: ${elements.length}`;
         }
 
-        // --- MOUSE & CANVAS INTERACTION ---
-        canvas.addEventListener('mousedown', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        // ===================== आकृतियों का geometry + rendering =====================
+        const TAU = Math.PI * 2;
 
-            if (e.button === 1 || currentTool === 'pan') {
-                isPanning = true;
-                startPanX = e.clientX - panX;
-                startPanY = e.clientY - panY;
-                return;
+        // 3-बिंदु चाप: (x1,y1)=शुरुआत, (x2,y2)=अंत, (x3,y3)=बीच का बिंदु
+        function arcGeom(el) {
+            const ax = el.x1, ay = el.y1, bx = el.x2, by = el.y2, cx = el.x3, cy = el.y3;
+            const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+            if (Math.abs(d) < 1e-6) return null;
+            const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+            const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
+            const uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
+            const A = Math.atan2(ay - uy, ax - ux), B = Math.atan2(by - uy, bx - ux), C = Math.atan2(cy - uy, cx - ux);
+            const norm = t => ((t % TAU) + TAU) % TAU;
+            return { x: ux, y: uy, r: Math.hypot(ax - ux, ay - uy), A, B, ccw: norm(C - A) > norm(B - A), norm };
+        }
+
+        function arcPts(el) {
+            const g = arcGeom(el);
+            if (!g) return [[el.x1, el.y1], [el.x2, el.y2]];
+            const sweep = g.ccw ? -g.norm(g.A - g.B) : g.norm(g.B - g.A);
+            const out = [];
+            for (let i = 0; i <= 32; i++) { const t = g.A + sweep * i / 32; out.push([g.x + g.r * Math.cos(t), g.y + g.r * Math.sin(t)]); }
+            return out;
+        }
+
+        // Catmull-Rom spline → bezier खंड
+        function splineSegs(pts) {
+            const s = [];
+            for (let i = 0; i < pts.length - 1; i++) {
+                const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+                s.push([p1, [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6], p2]);
             }
+            return s;
+        }
 
-            if (currentTool === 'select' || currentTool === 'move') {
-                const foundIndex = findElementAt(world.x, world.y);
-                selectedIndex = foundIndex;
-                updateSelectionUI();
-                drawScene();
-                if (foundIndex !== -1) {
-                    logCommand(`वस्तु चुनी गई: #${foundIndex + 1} (${elements[foundIndex].type})`);
-                } else {
-                    logCommand('चयन रद्द किया गया।');
+        function splinePts(pts) {
+            const out = [pts[0]];
+            splineSegs(pts).forEach(([a, b, c, d]) => {
+                for (let i = 1; i <= 10; i++) {
+                    const t = i / 10, u = 1 - t;
+                    out.push([u*u*u*a[0] + 3*u*u*t*b[0] + 3*u*t*t*c[0] + t*t*t*d[0], u*u*u*a[1] + 3*u*u*t*b[1] + 3*u*t*t*c[1] + t*t*t*d[1]]);
                 }
-                return;
-            }
-
-            if (!isDrawing) {
-                isDrawing = true;
-                startX = world.x; startY = world.y;
-                currentX = world.x; currentY = world.y;
-            } else {
-                finishDrawing(world.x, world.y);
-            }
-        });
-
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-            document.getElementById('hud-coords').innerText = `X: ${world.x.toFixed(2)}, Y: ${world.y.toFixed(2)}`;
-
-            if (isPanning) {
-                panX = e.clientX - startPanX;
-                panY = e.clientY - startPanY;
-                drawScene();
-                return;
-            }
-
-            if (isDrawing) {
-                currentX = world.x;
-                currentY = world.y;
-                drawScene();
-            }
-        });
-
-        canvas.addEventListener('mouseup', () => { isPanning = false; });
-
-        // Right-click also ends the running line
-        canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            endChain();
-        });
-
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomFactor = 1.15;
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            const worldBefore = screenToWorld(mouseX, mouseY);
-
-            if (e.deltaY < 0) {
-                scale *= zoomFactor;
-            } else {
-                scale /= zoomFactor;
-            }
-            scale = Math.max(0.1, Math.min(25, scale));
-
-            const worldAfter = screenToWorld(mouseX, mouseY);
-            panX += (worldAfter.x - worldBefore.x) * scale;
-            panY += (worldAfter.y - worldBefore.y) * scale;
-
-            document.getElementById('hud-zoom').innerText = `ज़ूम: ${Math.round(scale * 100)}%`;
-            drawScene();
-        }, { passive: false });
-
-        // --- KEYBOARD SHORTCUTS ---
-        window.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT') return; // Ignore when typing in input
-
-            // Chain drawing controls
-            if (isDrawing && (currentTool === 'line' || currentTool === 'polyline')) {
-                if (e.key === 'Enter') { e.preventDefault(); endChain(); return; }
-                if (e.key === 'Backspace') { e.preventDefault(); chainBack(); return; }
-            }
-            
-            // All Delete shortcut: Ctrl + Shift + Delete
-            if (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
-                e.preventDefault();
-                triggerClearAll();
-            } else if (e.key === 'Delete' || e.key === 'Backspace') {
-                handleDeleteAction();
-            } else if (e.key === 'Escape') {
-                endChain();
-                isDrawing = false;
-                clearSelection();
-                logCommand('क्रिया रद्द की गई');
-            } else if (e.ctrlKey && e.key === 'z') {
-                e.preventDefault();
-                triggerUndo();
-            } else if (e.ctrlKey && e.key === 'y') {
-                e.preventDefault();
-                triggerRedo();
-            }
-        });
-
-        function finishDrawing(endX, endY) {
-            saveUndoState();
-            const elem = {
-                type: currentTool,
-                color: strokeColor,
-                style: strokeStyle,
-                weight: strokeWeight,
-                layer: currentLayer
-            };
-
-            if (currentTool === 'line' || currentTool === 'polyline') {
-                if (Math.hypot(endX - startX, endY - startY) < 0.5) { historyStack.pop(); return; } // ignore zero-length (double click)
-                elem.type = 'line';
-                elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
-            } else if (currentTool === 'rect') {
-                elem.x = Math.min(startX, endX); elem.y = Math.min(startY, endY);
-                elem.w = Math.abs(endX - startX); elem.h = Math.abs(endY - startY);
-            } else if (currentTool === 'circle') {
-                elem.cx = startX; elem.cy = startY; elem.r = Math.hypot(endX - startX, endY - startY);
-            } else if (currentTool === 'dim' || currentTool === 'dim-radius') {
-                elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
-                elem.val = Math.hypot(endX - startX, endY - startY).toFixed(2);
-            } else if (currentTool === 'text') {
-                const textVal = prompt("पाठ दर्ज करें:");
-                if (textVal) { elem.text = textVal; elem.x = startX; elem.y = startY; } else { isDrawing = false; return; }
-            } else {
-                // Fallback line
-                elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
-            }
-
-            elements.push(elem);
-
-            if (currentTool === 'line' || currentTool === 'polyline') {
-                // CHAIN MODE: point is fixed, next line starts from here. Enter/Esc ends.
-                startX = endX; startY = endY;
-                currentX = endX; currentY = endY;
-                isDrawing = true;
-                selectedIndex = -1;
-                updateSelectionUI();
-                drawScene();
-                logCommand('बिंदु फिक्स हुआ — अगला बिंदु क्लिक करें। Enter = लाइन समाप्त, Backspace = आखिरी बिंदु हटाएँ।');
-                return;
-            }
-
-            isDrawing = false;
-            selectedIndex = elements.length - 1;
-            updateSelectionUI();
-            drawScene();
-            logCommand(`नयी ${currentTool.toUpperCase()} वस्तु बनाई गई।`);
-        }
-
-        // End the running line chain (Enter / Esc / right-click)
-        function endChain() {
-            if (!isDrawing) return;
-            isDrawing = false;
-            selectedIndex = -1;
-            updateSelectionUI();
-            drawScene();
-            logCommand('लाइन समाप्त की गई।');
-        }
-
-        // Remove the last segment of the chain and step back one point
-        function chainBack() {
-            if (elements.length === 0) { endChain(); return; }
-            const last = elements[elements.length - 1];
-            if (last.type !== 'line') { endChain(); return; }
-            elements.pop();
-            startX = last.x1; startY = last.y1;
-            currentX = startX; currentY = startY;
-            updateSelectionUI();
-            drawScene();
-            logCommand('आखिरी बिंदु हटाया गया।');
-        }
-
-        // --- DRAWING RENDER LOOP ---
-        function drawScene() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.translate(canvas.width / 2 + panX, canvas.height / 2 + panY);
-            ctx.scale(scale, scale);
-
-            drawGrid();
-
-            // Render all elements
-            elements.forEach((el, index) => {
-                drawElement(el, index === selectedIndex);
             });
-
-            // Active shape preview during mouse drag
-            if (isDrawing) {
-                ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = strokeWeight / scale;
-                ctx.setLineDash([4 / scale, 4 / scale]);
-                if (currentTool === 'line' || currentTool === 'polyline' || currentTool === 'dim') {
-                    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(currentX, currentY); ctx.stroke();
-                } else if (currentTool === 'rect') {
-                    ctx.strokeRect(Math.min(startX, currentX), Math.min(startY, currentY), Math.abs(currentX - startX), Math.abs(currentY - startY));
-                } else if (currentTool === 'circle') {
-                    ctx.beginPath(); ctx.arc(startX, startY, Math.hypot(currentX - startX, currentY - startY), 0, Math.PI * 2); ctx.stroke();
-                }
-                ctx.setLineDash([]);
-            }
-
-            ctx.restore();
+            return out;
         }
 
-        function drawGrid() {
-            const step = 40;
-            const left = -canvas.width / 2 - panX;
-            const right = canvas.width / 2 - panX;
-            const top = -canvas.height / 2 - panY;
-            const bottom = canvas.height / 2 - panY;
-
-            ctx.strokeStyle = '#181d26';
-            ctx.lineWidth = 0.5 / scale;
-            ctx.beginPath();
-
-            for (let x = Math.floor(left / step) * step; x <= right; x += step) {
-                ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+        function inPoly(pts, x, y) {
+            let inside = false;
+            for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+                const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
             }
-            for (let y = Math.floor(top / step) * step; y <= bottom; y += step) {
-                ctx.moveTo(left, y); ctx.lineTo(right, y);
-            }
-            ctx.stroke();
-
-            // Main Axes (Origin Lines)
-            ctx.strokeStyle = '#2d3748';
-            ctx.lineWidth = 1.2 / scale;
-            ctx.beginPath();
-            ctx.moveTo(left, 0); ctx.lineTo(right, 0);
-            ctx.moveTo(0, top); ctx.lineTo(0, bottom);
-            ctx.stroke();
+            return inside;
         }
 
-        function drawElement(el, isSelected) {
-            ctx.strokeStyle = isSelected ? '#facc15' : el.color;
-            ctx.fillStyle = isSelected ? '#facc15' : el.color;
-            ctx.lineWidth = (isSelected ? el.weight + 1.5 : el.weight) / scale;
-
-            if (el.style === 'dashed') ctx.setLineDash([8 / scale, 5 / scale]);
-            else if (el.style === 'dotted') ctx.setLineDash([2 / scale, 3 / scale]);
-            else ctx.setLineDash([]);
-
-            if (el.type === 'line') {
-                ctx.beginPath(); ctx.moveTo(el.x1, el.y1); ctx.lineTo(el.x2, el.y2); ctx.stroke();
-            } else if (el.type === 'rect') {
-                ctx.strokeRect(el.x, el.y, el.w, el.h);
-            } else if (el.type === 'circle') {
-                ctx.beginPath(); ctx.arc(el.cx, el.cy, el.r, 0, Math.PI * 2); ctx.stroke();
-            } else if (el.type === 'dim' || el.type === 'dim-radius') {
-                ctx.beginPath(); ctx.moveTo(el.x1, el.y1); ctx.lineTo(el.x2, el.y2); ctx.stroke();
-                ctx.font = `${11 / scale}px 'JetBrains Mono', sans-serif`;
-                ctx.fillText(`${el.val} mm`, (el.x1 + el.x2) / 2, (el.y1 + el.y2) / 2 - 4 / scale);
-            } else if (el.type === 'text') {
-                ctx.font = `${14 / scale}px Inter, sans-serif`;
-                ctx.fillText(el.text, el.x, el.y);
-            } else {
-                ctx.beginPath(); ctx.moveTo(el.x1, el.y1); ctx.lineTo(el.x2, el.y2); ctx.stroke();
-            }
-
-            // Selection Boundary Highlight Handles
-            if (isSelected) {
-                ctx.setLineDash([]);
-                ctx.fillStyle = '#facc15';
-                const handleSize = 5 / scale;
-                let hx = el.x1 || el.x || el.cx || 0;
-                let hy = el.y1 || el.y || el.cy || 0;
-                ctx.fillRect(hx - handleSize/2, hy - handleSize/2, handleSize, handleSize);
-            }
-            ctx.setLineDash([]);
-        }
-
-        function screenToWorld(sx, sy) {
-            return {
-                x: (sx - canvas.width / 2 - panX) / scale,
-                y: (sy - canvas.height / 2 - panY) / scale
+        // वस्तु का bounding box [x1,y1,x2,y2] (अन्य users वाले view में भी इस्तेमाल होता है)
+        function elBounds(el) {
+            const fromPts = pts => {
+                let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+                pts.forEach(p => { a = Math.min(a, p[0]); b = Math.min(b, p[1]); c = Math.max(c, p[0]); d = Math.max(d, p[1]); });
+                return [a, b, c, d];
             };
+            switch (el.type) {
+                case 'rect': return [el.x, el.y, el.x + el.w, el.y + el.h];
+                case 'circle': return [el.cx - el.r, el.cy - el.r, el.cx + el.r, el.cy + el.r];
+                case 'ellipse': return [el.cx - el.rx, el.cy - el.ry, el.cx + el.rx, el.cy + el.ry];
+                case 'polyline': case 'polygon': case 'hatch': return fromPts(el.pts);
+                case 'spline': return fromPts(splinePts(el.pts));
+                case 'arc': return fromPts(arcPts(el));
+                case 'point': return [el.x - 4, el.y - 4, el.x + 4, el.y + 4];
+                case 'text': return [el.x, el.y - 14, el.x + (el.text || '').length * 8, el.y];
+                default: return el.x1 !== undefined ? [Math.min(el.x1, el.x2), Math.min(el.y1, el.y2), Math.max(el.x1, el.x2), Math.max(el.y1, el.y2)] : null;
+            }
+        }
+
+        // c = कोई भी canvas context, sc = उसका scale। o = {color, extra, alpha, dash} (चयन चमक/preview के लिए)
+        function renderEl(c, el, sc, o) {
+            o = o || {};
+            c.save();
+            const col = o.color || el.color || '#809fff';
+            c.strokeStyle = col; c.fillStyle = col;
+            c.lineWidth = ((el.weight || 2) + (o.extra || 0)) / sc;
+            c.lineJoin = 'round'; c.lineCap = 'round';
+            c.globalAlpha = o.alpha || 1;
+            const st = o.dash ? 'dashed' : el.style;
+            if (st === 'dashed') c.setLineDash([8 / sc, 5 / sc]);
+            else if (st === 'dotted') c.setLineDash([2 / sc, 3 / sc]);
+            else c.setLineDash([]);
+
+            const fillIt = () => { if (el.fill && !o.color) { c.save(); c.globalAlpha = 0.35; c.fillStyle = el.fill; c.fill(); c.restore(); } };
+            const poly = (pts, close) => { c.beginPath(); pts.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); if (close) c.closePath(); };
+
+            switch (el.type) {
+                case 'rect': c.beginPath(); c.rect(el.x, el.y, el.w, el.h); fillIt(); c.stroke(); break;
+                case 'circle': c.beginPath(); c.arc(el.cx, el.cy, el.r, 0, TAU); fillIt(); c.stroke(); break;
+                case 'ellipse': c.beginPath(); c.ellipse(el.cx, el.cy, el.rx, el.ry, 0, 0, TAU); fillIt(); c.stroke(); break;
+                case 'polyline': poly(el.pts, false); c.stroke(); break;
+                case 'polygon': poly(el.pts, true); fillIt(); c.stroke(); break;
+                case 'spline':
+                    c.beginPath(); c.moveTo(el.pts[0][0], el.pts[0][1]);
+                    splineSegs(el.pts).forEach(s => c.bezierCurveTo(s[1][0], s[1][1], s[2][0], s[2][1], s[3][0], s[3][1]));
+                    c.stroke(); break;
+                case 'arc': {
+                    const g = arcGeom(el);
+                    c.beginPath();
+                    if (g) c.arc(g.x, g.y, g.r, g.A, g.B, g.ccw); else { c.moveTo(el.x1, el.y1); c.lineTo(el.x2, el.y2); }
+                    c.stroke(); break;
+                }
+                case 'hatch': {
+                    const b = elBounds(el), sp = 10, h = b[3] - b[1];
+                    poly(el.pts, true); fillIt();
+                    c.save(); poly(el.pts, true); c.clip();
+                    c.setLineDash([]); c.lineWidth = 1 / sc; c.beginPath();
+                    for (let x = b[0] - h; x <= b[2]; x += sp) { c.moveTo(x, b[3]); c.lineTo(x + h, b[1]); }
+                    c.stroke(); c.restore();
+                    poly(el.pts, true); c.stroke(); break;
+                }
+                case 'point':
+                    c.beginPath(); c.arc(el.x, el.y, 3.5 / sc, 0, TAU);
+                    c.moveTo(el.x - 7 / sc, el.y); c.lineTo(el.x + 7 / sc, el.y);
+                    c.moveTo(el.x, el.y - 7 / sc); c.lineTo(el.x, el.y + 7 / sc);
+                    c.stroke(); break;
+                case 'text':
+                    c.font = `${14 / sc}px Inter, sans-serif`; c.fillText(el.text, el.x, el.y); break;
+                default:
+                    if (el.x1 !== undefined) {
+                        c.beginPath(); c.moveTo(el.x1, el.y1); c.lineTo(el.x2, el.y2); c.stroke();
+                        if (el.type === 'dim' || el.type === 'dim-radius') {
+                            c.font = `${11 / sc}px 'JetBrains Mono', monospace`;
+                            c.fillText(`${el.val} mm`, (el.x1 + el.x2) / 2, (el.y1 + el.y2) / 2 - 4 / sc);
+                        }
+                    }
+            }
+            c.restore();
+        }
+
+        function hitTest(el, x, y, tol) {
+            const seg = (pts, close) => {
+                for (let i = 0; i < pts.length - (close ? 0 : 1); i++) {
+                    const a = pts[i], b = pts[(i + 1) % pts.length];
+                    if (pointToSegmentDistance(x, y, a[0], a[1], b[0], b[1]) <= tol) return true;
+                }
+                return false;
+            };
+            switch (el.type) {
+                case 'rect': return x >= el.x - tol && x <= el.x + el.w + tol && y >= el.y - tol && y <= el.y + el.h + tol;
+                case 'circle': { const d = Math.hypot(x - el.cx, y - el.cy); return Math.abs(d - el.r) <= tol || (!!el.fill && d <= el.r); }
+                case 'ellipse': { const d = Math.hypot((x - el.cx) / el.rx, (y - el.cy) / el.ry); return Math.abs(d - 1) * Math.min(el.rx, el.ry) <= tol || (!!el.fill && d <= 1); }
+                case 'polyline': return seg(el.pts, false);
+                case 'polygon': return seg(el.pts, true) || (!!el.fill && inPoly(el.pts, x, y));
+                case 'hatch': return seg(el.pts, true) || inPoly(el.pts, x, y);
+                case 'spline': return seg(splinePts(el.pts), false);
+                case 'arc': return seg(arcPts(el), false);
+                case 'point': return Math.hypot(x - el.x, y - el.y) <= tol;
+                case 'text': { const b = elBounds(el); return x >= b[0] - tol && x <= b[2] + tol && y >= b[1] - tol && y <= b[3] + tol; }
+                default: return el.x1 !== undefined && pointToSegmentDistance(x, y, el.x1, el.y1, el.x2, el.y2) <= tol;
+            }
         }
 
         function findElementAt(wx, wy) {
-            const tolerance = 12 / scale;
-            for (let i = elements.length - 1; i >= 0; i--) {
-                const el = elements[i];
-                if (el.type === 'rect' && wx >= el.x - tolerance && wx <= el.x + el.w + tolerance && wy >= el.y - tolerance && wy <= el.y + el.h + tolerance) {
-                    return i;
-                }
-                if (el.type === 'circle' && Math.abs(Math.hypot(wx - el.cx, wy - el.cy) - el.r) <= tolerance) {
-                    return i;
-                }
-                if ((el.type === 'line' || el.type === 'dim') && pointToSegmentDistance(wx, wy, el.x1, el.y1, el.x2, el.y2) <= tolerance) {
-                    return i;
-                }
-            }
+            const tol = 12 / scale;
+            for (let i = elements.length - 1; i >= 0; i--) if (hitTest(elements[i], wx, wy, tol)) return i;
             return -1;
         }
 
@@ -799,40 +657,323 @@
             return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
         }
 
-        // --- HISTORY UNDO / REDO ---
-        function saveUndoState() {
-            historyStack.push(JSON.stringify(elements));
-            redoStack = [];
+        // क्लिक किए गए बिंदुओं (p = [{x,y},...]) से वस्तु बनाता है। preview=true पर prompt/validation ढीला।
+        function buildEl(tool, p, preview) {
+            const e = { type: tool, color: strokeColor, style: strokeStyle, weight: strokeWeight, layer: currentLayer, fill: null };
+            const a = p[0], b = p[1], c = p[2];
+            const pts = () => p.map(q => [q.x, q.y]);
+            if ((tool === 'polygon' || tool === 'hatch') && p.length < 3) {
+                if (!preview) return null;
+                tool = e.type = 'polyline';
+            }
+            switch (tool) {
+                case 'line':
+                    if (!b || Math.hypot(b.x - a.x, b.y - a.y) < 0.5) return null;
+                    Object.assign(e, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }); break;
+                case 'polyline': case 'spline':
+                    if (p.length < 2) return null; e.pts = pts(); break;
+                case 'polygon':
+                    e.pts = pts(); e.fill = preview ? null : fillColor; break;
+                case 'hatch':
+                    e.pts = pts(); break;
+                case 'circle':
+                    if (!b) return null;
+                    e.cx = a.x; e.cy = a.y; e.r = Math.hypot(b.x - a.x, b.y - a.y);
+                    if (e.r < 0.5) return null;
+                    e.fill = preview ? null : fillColor; break;
+                case 'ellipse':
+                    if (!b) return null;
+                    e.cx = (a.x + b.x) / 2; e.cy = (a.y + b.y) / 2; e.rx = Math.abs(b.x - a.x) / 2; e.ry = Math.abs(b.y - a.y) / 2;
+                    if (e.rx < 0.5 || e.ry < 0.5) return null;
+                    e.fill = preview ? null : fillColor; break;
+                case 'rect':
+                    if (!b) return null;
+                    e.x = Math.min(a.x, b.x); e.y = Math.min(a.y, b.y); e.w = Math.abs(b.x - a.x); e.h = Math.abs(b.y - a.y);
+                    if (e.w < 0.5 && e.h < 0.5) return null;
+                    e.fill = preview ? null : fillColor; break;
+                case 'arc':
+                    if (!c) {
+                        if (!preview || !b) return null;
+                        e.type = 'line'; Object.assign(e, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }); break;
+                    }
+                    Object.assign(e, { x1: a.x, y1: a.y, x2: b.x, y2: b.y, x3: c.x, y3: c.y }); break;
+                case 'point':
+                    e.x = a.x; e.y = a.y; break;
+                case 'dim': case 'dim-radius':
+                    if (!b) return null;
+                    Object.assign(e, { x1: a.x, y1: a.y, x2: b.x, y2: b.y, val: Math.hypot(b.x - a.x, b.y - a.y).toFixed(2) }); break;
+                case 'text': {
+                    if (preview) return null;
+                    const t = prompt('पाठ दर्ज करें:');
+                    if (!t) return null;
+                    e.text = t; e.x = a.x; e.y = a.y; break;
+                }
+                default: return null;
+            }
+            return e;
         }
+
+        // --- DRAWING FLOW ---
+        function updateFinishBtn() {
+            const cfg = TOOLS[currentTool];
+            const box = document.getElementById('draw-actions');
+            if (!box) return;
+            const show = draft.length > 0 && !!cfg;
+            box.classList.toggle('hidden', !show);
+            box.classList.toggle('flex', show);
+            document.getElementById('btn-finish').style.display = (cfg && (cfg.multi || cfg.chain)) ? '' : 'none';
+        }
+
+        function cancelDraft() { draft = []; chainCount = 0; updateFinishBtn(); drawScene(); }
+
+        function addPoint(p) {
+            const cfg = TOOLS[currentTool];
+            if (!cfg) { showToast('यह टूल अभी उपलब्ध नहीं है', true); return; }
+            if (cfg.multi) {
+                const last = draft[draft.length - 1];
+                if (last && Math.hypot(p.x - last.x, p.y - last.y) < 3 / scale) return; // डबल-क्लिक का दोहराव
+                draft.push(p);
+                updateFinishBtn(); drawScene();
+                return;
+            }
+            draft.push(p);
+            if (draft.length >= cfg.n) finishDrawing(); else { updateFinishBtn(); drawScene(); }
+        }
+
+        function finishDrawing() {
+            const cfg = TOOLS[currentTool];
+            const el = buildEl(currentTool, draft, false);
+            const lastPt = draft[draft.length - 1];
+            if (!el) { draft = cfg.chain ? [draft[0]] : []; updateFinishBtn(); drawScene(); return; }
+            saveUndoState();
+            elements.push(el);
+            if (cfg.chain) { draft = [lastPt]; chainCount++; } else draft = [];
+            selectedIndex = -1;
+            updateSelectionUI(); updateFinishBtn(); drawScene();
+            logCommand(cfg.chain ? 'बिंदु फिक्स हुआ — अगला बिंदु क्लिक करें। ✓/Enter = समाप्त, Backspace = पिछला हटाएँ।' : `नयी ${currentTool.toUpperCase()} वस्तु बनाई गई।`);
+        }
+
+        // पूरा करें (✓ / Enter / राइट-क्लिक / डबल-क्लिक)
+        function endChain() {
+            if (!draft.length) return;
+            const cfg = TOOLS[currentTool];
+            if (cfg && cfg.multi) {
+                const el = buildEl(currentTool, draft, false);
+                if (el) { saveUndoState(); elements.push(el); logCommand(`नयी ${currentTool.toUpperCase()} वस्तु बनाई गई।`); }
+                else showToast(`आकृति के लिए कम से कम ${cfg.min} बिंदु चाहिए`, true);
+            } else logCommand('समाप्त।');
+            draft = []; chainCount = 0; selectedIndex = -1;
+            updateSelectionUI(); updateFinishBtn(); drawScene();
+        }
+
+        // Backspace: आखिरी बिंदु / खंड हटाएँ
+        function stepBack() {
+            const cfg = TOOLS[currentTool];
+            if (cfg && cfg.chain && chainCount > 0 && elements.length) {
+                const last = elements.pop();
+                draft = [{ x: last.x1, y: last.y1 }]; chainCount--;
+            } else if (draft.length > 1 && cfg && !cfg.chain) draft.pop();
+            else draft = [];
+            updateSelectionUI(); updateFinishBtn(); drawScene();
+            logCommand('आखिरी बिंदु हटाया गया।');
+        }
+
+        // --- POINTER (mouse + touch) ---
+        function localPos(e) {
+            const r = canvas.getBoundingClientRect();
+            return { sx: e.clientX - r.left, sy: e.clientY - r.top };
+        }
+
+        // --- वस्तु पर क्लिक करके drag से move ---
+        let dragMove = null; // { lastX, lastY, moved }
+        function moveEl(el, dx, dy) {
+            [['x','y'],['cx','cy'],['x1','y1'],['x2','y2'],['x3','y3']].forEach(([a, b]) => {
+                if (typeof el[a] === 'number' && typeof el[b] === 'number') { el[a] += dx; el[b] += dy; }
+            });
+            if (el.pts) el.pts.forEach(q => { q[0] += dx; q[1] += dy; });
+        }
+
+        canvas.addEventListener('pointerdown', (e) => {
+            if (e.button === 2) return;
+            const { sx, sy } = localPos(e);
+            const world = screenToWorld(sx, sy);
+            cursor = world;
+            try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+            if (e.button === 1 || currentTool === 'pan') {
+                isPanning = true; startPanX = e.clientX - panX; startPanY = e.clientY - panY;
+                return;
+            }
+            if (currentTool === 'select' || currentTool === 'move') {
+                selectedIndex = findElementAt(world.x, world.y);
+                propUndoSel = null;
+                updateSelectionUI();
+                if (selectedIndex !== -1) {
+                    syncPropsFromEl(elements[selectedIndex]);
+                    logCommand(`वस्तु चुनी गई: #${selectedIndex + 1} (${elements[selectedIndex].type}) — खींचकर move करें, या ऊपर से रंग/स्टाइल बदलें।`);
+                    dragMove = { lastX: world.x, lastY: world.y, moved: false };
+                    canvas.style.cursor = 'move';
+                } else logCommand('चयन रद्द किया गया।');
+                drawScene();
+                return;
+            }
+            justStarted = draft.length === 0;
+            downScreen = { x: sx, y: sy };
+            addPoint(world);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            const { sx, sy } = localPos(e);
+            const world = screenToWorld(sx, sy);
+            document.getElementById('hud-coords').innerText = `X: ${world.x.toFixed(2)}, Y: ${world.y.toFixed(2)}`;
+            if (isPanning) { panX = e.clientX - startPanX; panY = e.clientY - startPanY; drawScene(); return; }
+            if (dragMove && selectedIndex !== -1 && elements[selectedIndex]) {
+                const dx = world.x - dragMove.lastX, dy = world.y - dragMove.lastY;
+                if (!dragMove.moved) {
+                    if (Math.hypot(dx, dy) * scale < 3) return; // छोटे हिलने पर move नहीं
+                    saveUndoState(); dragMove.moved = true; // एक drag = एक undo
+                }
+                moveEl(elements[selectedIndex], dx, dy);
+                dragMove.lastX = world.x; dragMove.lastY = world.y;
+                drawScene(); return;
+            }
+            cursor = world;
+            if (draft.length) drawScene();
+        });
+
+        // ड्रैग करके छोड़ने पर भी अगला बिंदु जुड़ जाए (click-click और drag दोनों चलें)
+        function endDrag() { if (dragMove && dragMove.moved) logCommand('वस्तु move हो गई।'); dragMove = null; canvas.style.cursor = ''; }
+        canvas.addEventListener('pointerup', (e) => {
+            isPanning = false; endDrag();
+            if (justStarted && draft.length === 1 && downScreen) {
+                const { sx, sy } = localPos(e);
+                if (Math.hypot(sx - downScreen.x, sy - downScreen.y) > 10) addPoint(screenToWorld(sx, sy));
+            }
+            justStarted = false;
+        });
+        canvas.addEventListener('pointercancel', () => { isPanning = false; justStarted = false; endDrag(); });
+
+        canvas.addEventListener('dblclick', () => { if (draft.length) endChain(); });
+        canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); endChain(); });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = 1.15;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
+            const worldBefore = screenToWorld(mouseX, mouseY);
+            if (e.deltaY < 0) scale *= zoomFactor; else scale /= zoomFactor;
+            scale = Math.max(0.1, Math.min(25, scale));
+            const worldAfter = screenToWorld(mouseX, mouseY);
+            panX += (worldAfter.x - worldBefore.x) * scale;
+            panY += (worldAfter.y - worldBefore.y) * scale;
+            document.getElementById('hud-zoom').innerText = `ज़ूम: ${Math.round(scale * 100)}%`;
+            drawScene();
+        }, { passive: false });
+
+        // --- KEYBOARD SHORTCUTS ---
+        window.addEventListener('keydown', (e) => {
+            const tg = e.target.tagName;
+            if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || e.target.isContentEditable) return;
+
+            if (!draft.length && e.key === 'Enter' && TOOLS[currentTool]) { e.preventDefault(); setTool('select'); return; }
+            if (draft.length) {
+                if (e.key === 'Enter') { e.preventDefault(); endChain(); return; }
+                if (e.key === 'Backspace') { e.preventDefault(); stepBack(); return; }
+            }
+            if (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+                e.preventDefault(); triggerClearAll();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                handleDeleteAction();
+            } else if (e.key === 'Escape') {
+                cancelDraft(); clearSelection(); logCommand('क्रिया रद्द की गई');
+            } else if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault(); triggerUndo();
+            } else if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault(); triggerRedo();
+            }
+        });
+
+        // --- DRAWING RENDER LOOP ---
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2 + panX, canvas.height / 2 + panY);
+            ctx.scale(scale, scale);
+            drawGrid();
+
+            elements.forEach((el, index) => drawElement(el, index === selectedIndex));
+
+            if (draft.length && TOOLS[currentTool]) {
+                const pv = buildEl(currentTool, draft.concat([cursor]), true);
+                if (pv) renderEl(ctx, pv, scale, { color: '#38bdf8', dash: true });
+                ctx.fillStyle = '#38bdf8';
+                draft.forEach(q => { ctx.beginPath(); ctx.arc(q.x, q.y, 3 / scale, 0, TAU); ctx.fill(); });
+            }
+            ctx.restore();
+        }
+
+        function drawGrid() {
+            const step = 40;
+            const left = -canvas.width / 2 - panX, right = canvas.width / 2 - panX;
+            const top = -canvas.height / 2 - panY, bottom = canvas.height / 2 - panY;
+            ctx.strokeStyle = '#181d26';
+            ctx.lineWidth = 0.5 / scale;
+            ctx.beginPath();
+            for (let x = Math.floor(left / step) * step; x <= right; x += step) { ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
+            for (let y = Math.floor(top / step) * step; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
+            ctx.stroke();
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 1.2 / scale;
+            ctx.beginPath();
+            ctx.moveTo(left, 0); ctx.lineTo(right, 0);
+            ctx.moveTo(0, top); ctx.lineTo(0, bottom);
+            ctx.stroke();
+        }
+
+        function drawElement(el, isSelected) {
+            if (isSelected) renderEl(ctx, el, scale, { color: '#facc15', extra: 6, alpha: 0.4 }); // असली रंग के पीछे पीली चमक
+            renderEl(ctx, el, scale);
+            if (isSelected) {
+                const b = elBounds(el);
+                if (b) {
+                    const h = 5 / scale;
+                    ctx.save(); ctx.fillStyle = '#facc15';
+                    [[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]].forEach(q => ctx.fillRect(q[0] - h / 2, q[1] - h / 2, h, h));
+                    ctx.restore();
+                }
+            }
+        }
+
+        function screenToWorld(sx, sy) {
+            return { x: (sx - canvas.width / 2 - panX) / scale, y: (sy - canvas.height / 2 - panY) / scale };
+        }
+
+        // --- HISTORY UNDO / REDO ---
+        function saveUndoState() { historyStack.push(JSON.stringify(elements)); redoStack = []; }
 
         function triggerUndo() {
             if (historyStack.length > 0) {
                 redoStack.push(JSON.stringify(elements));
                 elements = JSON.parse(historyStack.pop());
-                selectedIndex = -1;
-                updateSelectionUI();
-                drawScene();
+                selectedIndex = -1; propUndoSel = null; draft = [];
+                updateSelectionUI(); updateFinishBtn(); drawScene();
                 logCommand('पूर्ववत (Undo) किया गया।');
-            } else {
-                showToast('कोई पूर्ववत इतिहास उपलब्ध नहीं है', true);
-            }
+            } else showToast('कोई पूर्ववत इतिहास उपलब्ध नहीं है', true);
         }
 
         function triggerRedo() {
             if (redoStack.length > 0) {
                 historyStack.push(JSON.stringify(elements));
                 elements = JSON.parse(redoStack.pop());
-                selectedIndex = -1;
-                updateSelectionUI();
-                drawScene();
+                selectedIndex = -1; propUndoSel = null; draft = [];
+                updateSelectionUI(); updateFinishBtn(); drawScene();
                 logCommand('पुनरावृत्ति (Redo) की गई।');
             }
         }
 
         function triggerNew() {
-            if (elements.length > 0 && confirm("क्या आप नया खाली कैनवास शुरू करना चाहते हैं?")) {
-                triggerClearAll();
-            }
+            if (elements.length > 0 && confirm("क्या आप नया खाली कैनवास शुरू करना चाहते हैं?")) triggerClearAll();
         }
 
         function zoomIn() { scale *= 1.25; drawScene(); document.getElementById('hud-zoom').innerText = `ज़ूम: ${Math.round(scale * 100)}%`; }
@@ -847,21 +988,19 @@
             showToast('ड्रॉइंग सफलतापूर्वक डाउनलोड हुई');
         }
 
-        function handleCommandKey(e) {
-            if (e.key === 'Enter') handleCommandSubmit();
-        }
+        function handleCommandKey(e) { if (e.key === 'Enter') handleCommandSubmit(); }
+
+        const CMDS = { line: 'line', l: 'line', polyline: 'polyline', pline: 'polyline', pl: 'polyline', circle: 'circle', c: 'circle',
+            ellipse: 'ellipse', el: 'ellipse', arc: 'arc', a: 'arc', polygon: 'polygon', pol: 'polygon', rect: 'rect', rec: 'rect',
+            spline: 'spline', spl: 'spline', hatch: 'hatch', h: 'hatch', point: 'point', po: 'point', text: 'text', t: 'text',
+            select: 'select', s: 'select' };
 
         function handleCommandSubmit() {
             const input = document.getElementById('command-input');
             const cmd = input.value.trim().toLowerCase();
             input.value = '';
-
-            if (!cmd) { endChain(); return; } // Enter on empty command line also ends the line
-
-            if (cmd === 'line' || cmd === 'l') setTool('line');
-            else if (cmd === 'rect' || cmd === 'rec') setTool('rect');
-            else if (cmd === 'circle' || cmd === 'c') setTool('circle');
-            else if (cmd === 'select' || cmd === 's') setTool('select');
+            if (!cmd) { endChain(); return; }
+            if (CMDS[cmd]) setTool(CMDS[cmd]);
             else if (cmd === 'delete' || cmd === 'del' || cmd === 'erase') handleDeleteAction();
             else if (cmd === 'clear') triggerClearAll();
             else if (cmd === 'undo') triggerUndo();
@@ -949,7 +1088,9 @@
         const txt = document.getElementById('presence-text');
 
         // आज की तारीख (IST) — 12 AM पर यही बदलती है
-        const todayKey = () => new Date(Date.now() + IST_OFFSET).toISOString().slice(0, 10);
+        // Firebase server का समय इस्तेमाल करें — किसी user के फोन/PC की गलत तारीख से reset न चले
+        let serverOffset = 0;
+        const todayKey = () => new Date(Date.now() + serverOffset + IST_OFFSET).toISOString().slice(0, 10);
 
         function setPill(status, clicks) {
             const active = status === 'active';
@@ -991,7 +1132,8 @@
         // --- 12 AM (IST) पर सभी users का count 0 ---
         function resetAllIfNewDay() {
             const today = todayKey();
-            db.ref('meta/lastReset').transaction(cur => (cur === today ? undefined : today), (err, committed) => {
+            // सिर्फ तब reset जब असली नया दिन हो (तारीख कभी पीछे नहीं जाएगी)
+            db.ref('meta/lastReset').transaction(cur => (cur && cur >= today ? undefined : today), (err, committed) => {
                 if (err || !committed) return; // किसी और ने आज reset कर दिया
                 db.ref('users').once('value').then(snap => {
                     const updates = {};
@@ -1000,9 +1142,7 @@
                         updates[child.key + '/date'] = today;
                     });
                     if (Object.keys(updates).length) db.ref('users').update(updates);
-                    // 12 AM: सभी drawings और history भी delete
-                    db.ref('drawings').remove();
-                    db.ref('history').remove();
+                    // drawings नहीं हटतीं — user के नई drawing बनाने पर ही बदलेंगी
                 });
             });
         }
@@ -1014,6 +1154,8 @@
         }
 
         // --- कनेक्शन / presence ---
+        db.ref('.info/serverTimeOffset').on('value', s => { serverOffset = s.val() || 0; });
+
         db.ref('.info/connected').on('value', snap => {
             if (snap.val() !== true) return;
 
@@ -1071,10 +1213,10 @@
                 if (s === lastSynced) return;
                 lastSynced = s;
 
+                // पुरानी drawing तब तक रहती है जब तक user नई drawing शुरू न करे।
+                // canvas खाली होने / नया session खुलने / offline होने पर Firebase से कुछ नहीं हटता।
                 if (elements.length) {
                     db.ref('drawings/' + uid).set({ data: s, count: elements.length, updated: SV.TIMESTAMP });
-                } else {
-                    db.ref('drawings/' + uid).remove();
                 }
             } catch (e) {}
         }, 700);
@@ -1186,40 +1328,14 @@
             if (!viewEls.length) return;
             let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
             const add = (x, y) => { if (x < x1) x1 = x; if (y < y1) y1 = y; if (x > x2) x2 = x; if (y > y2) y2 = y; };
-            viewEls.forEach(e => {
-                if (e.type === 'rect') { add(e.x, e.y); add(e.x + e.w, e.y + e.h); }
-                else if (e.type === 'circle') { add(e.cx - e.r, e.cy - e.r); add(e.cx + e.r, e.cy + e.r); }
-                else if (e.type === 'text') { add(e.x, e.y); add(e.x + 80, e.y); }
-                else if (e.x1 !== undefined) { add(e.x1, e.y1); add(e.x2, e.y2); }
-            });
+            viewEls.forEach(e => { const bb = elBounds(e); if (bb) { add(bb[0], bb[1]); add(bb[2], bb[3]); } });
             const pad = 40;
             const bw = Math.max(x2 - x1, 1), bh = Math.max(y2 - y1, 1);
             const sc = Math.min((oCv.width - pad * 2) / bw, (oCv.height - pad * 2) / bh, 6);
             oCx.save();
             oCx.translate((oCv.width - bw * sc) / 2 - x1 * sc, (oCv.height - bh * sc) / 2 - y1 * sc);
             oCx.scale(sc, sc);
-            viewEls.forEach(el => {
-                oCx.strokeStyle = el.color || '#809fff';
-                oCx.fillStyle = el.color || '#809fff';
-                oCx.lineWidth = (el.weight || 2) / sc;
-                if (el.style === 'dashed') oCx.setLineDash([8 / sc, 5 / sc]);
-                else if (el.style === 'dotted') oCx.setLineDash([2 / sc, 3 / sc]);
-                else oCx.setLineDash([]);
-                if (el.type === 'rect') {
-                    oCx.strokeRect(el.x, el.y, el.w, el.h);
-                } else if (el.type === 'circle') {
-                    oCx.beginPath(); oCx.arc(el.cx, el.cy, el.r, 0, Math.PI * 2); oCx.stroke();
-                } else if (el.type === 'text') {
-                    oCx.font = (14 / sc) + 'px Inter, sans-serif';
-                    oCx.fillText(el.text, el.x, el.y);
-                } else if (el.x1 !== undefined) {
-                    oCx.beginPath(); oCx.moveTo(el.x1, el.y1); oCx.lineTo(el.x2, el.y2); oCx.stroke();
-                    if (el.type === 'dim' || el.type === 'dim-radius') {
-                        oCx.font = (11 / sc) + 'px monospace';
-                        oCx.fillText(el.val + ' mm', (el.x1 + el.x2) / 2, (el.y1 + el.y2) / 2 - 4 / sc);
-                    }
-                }
-            });
+            viewEls.forEach(el => renderEl(oCx, el, sc));
             oCx.restore();
         }
 
@@ -1314,6 +1430,7 @@
             const cont = document.getElementById('canvas-container');
             const hud = document.getElementById('hud-box');
             chatBody.classList.toggle('hidden', !chatOpen);
+            document.getElementById('chat-close').classList.toggle('hidden', !chatOpen);
             if (chatOpen) {
                 // दाईं ओर ऊपर से नीचे तक fix; CAD canvas उतना सिकुड़ जाता है (ढकता नहीं)
                 const w = CHAT_W();
@@ -1339,6 +1456,7 @@
             if (!oModal.classList.contains('hidden')) sizeO();
         }
         document.getElementById('chat-toggle').addEventListener('click', () => { chatOpen = !chatOpen; applyChat(); });
+        document.getElementById('chat-close').addEventListener('click', () => { chatOpen = false; applyChat(); });
         applyChat();
 
         // हर user की पहचान का रंग उसकी ID से तय होता है — हमेशा वही रहता है
@@ -1742,12 +1860,6 @@
         }
 
 
-        document.getElementById('chat-name').addEventListener('click', () => {
-            const cur = (allUsers[uid] && allUsers[uid].name) || '';
-            const nn = prompt('अपना नाम लिखें (अधिकतम 15 अक्षर):', cur);
-            if (nn && nn.trim()) { const f = nn.trim().slice(0, 15); saveName(f); myRef.update({ name: f }); }
-        });
-
         setTimeout(trimChat, 3000);
 
         // --- नाम: सिर्फ पहली बार पूछा जाता है ---
@@ -1858,10 +1970,7 @@
         let firstResetEvent = true;
         db.ref('meta/lastReset').on('value', () => {
             if (firstResetEvent) { firstResetEvent = false; return; }
-            elements = []; selectedIndex = -1; isDrawing = false;
-            historyStack = []; redoStack = [];
-            lastSynced = '';
-            updateSelectionUI(); drawScene();
+            // canvas यहाँ नहीं हटाते
         });
 
         // tab छिपाने/बंद करने पर offline
