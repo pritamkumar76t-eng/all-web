@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="hi" class="h-full bg-[#0f1115]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Web CAD Studio</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #0d0e12;
+            color: #d1d5db;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Ribbon Panel Styles */
+        .ribbon-panel {
+            background: linear-gradient(180deg, #1d212a 0%, #171a21 100%);
+            border: 1px solid #2a303d;
+            border-radius: 6px;
+            padding: 5px 6px 3px 6px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .ribbon-title {
+            text-align: center;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: #8b95a5;
+            border-top: 1px solid #272d38;
+            margin-top: 4px;
+            padding-top: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Cad Tool Button */
+        .cad-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            color: #9da8b6;
+            background-color: transparent;
+            border: 1px solid transparent;
+            transition: all 0.12s ease-out;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .cad-btn:hover {
+            background-color: #2b3240;
+            color: #38bdf8;
+            border-color: #3b4454;
+        }
+
+        .cad-btn.active {
+            background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+            color: #ffffff;
+            border-color: #38bdf8;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+        }
+
+        .cad-btn-danger:hover {
+            background-color: #7f1d1d !important;
+            color: #f87171 !important;
+            border-color: #ef4444 !important;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0d0e12; }
+        ::-webkit-scrollbar-thumb { background: #262c38; border-radius: 2px; }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        
+        .toast-msg {
+            animation: fadeInOut 2.5s forwards;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(10px); }
+            15% { opacity: 1; transform: translateY(0); }
+            85% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between select-none">
+
+    <!-- Top Quick Access App Header -->
+    <header class="bg-[#12151c] border-b border-[#232834] px-3 py-1.5 flex items-center justify-between z-30">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 pr-3 border-r border-[#262c3a]">
+                <div class="w-6 h-6 rounded bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                    A
+                </div>
+                <span class="font-bold text-xs tracking-wide text-slate-200">AutoCAD <span class="text-cyan-400 font-normal">Web Studio</span></span>
+            </div>
+
+            <!-- File Action Tools -->
+            <div class="flex items-center gap-1">
+                <button onclick="triggerNew()" class="cad-btn" title="नया कैनवास (New)"><i class="fa-regular fa-file"></i></button>
+                <button onclick="triggerNew()" class="cad-btn" title="फाइल खोलें (Open)"><i class="fa-regular fa-folder-open"></i></button>
+                <button onclick="downloadCanvas()" class="cad-btn text-cyan-400" title="इमेज एक्सपोर्ट (Export PNG)"><i class="fa-solid fa-download"></i></button>
+                <button onclick="window.print()" class="cad-btn" title="प्रिंट (Print)"><i class="fa-solid fa-print"></i></button>
+            </div>
+
+            <div class="h-4 w-[1px] bg-[#262c3a] mx-1"></div>
+
+            <!-- Undo / Redo -->
+            <div class="flex items-center gap-1">
+                <button onclick="triggerUndo()" class="cad-btn" title="पूर्ववत करें (Undo - Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                <button onclick="triggerRedo()" class="cad-btn" title="फिर से करें (Redo - Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>
+        </div>
+
+        <!-- Session Status -->
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-amber-400">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span>अस्थायी सत्र (Volatile - नो ऑटो-सेव)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Professional AutoCAD CAD Ribbon Toolbar -->
+    <div class="bg-[#151821] border-b border-[#232834] p-1.5 flex items-stretch gap-2 text-xs z-20 overflow-x-auto shadow-xl">
+        
+        <!-- 1. आकृतियाँ (Shapes / Drawing) -->
+        <div class="ribbon-panel">
+            <div class="grid grid-cols-5 gap-1">
+                <button id="tool-line" onclick="setTool('line')" class="cad-btn active" title="रेखा (Line)"><i class="fa-solid fa-slash text-xs"></i></button>
+                <button id="tool-polyline" onclick="setTool('polyline')" class="cad-btn" title="पॉलीलाइन (Polyline)"><i class="fa-solid fa-route text-xs"></i></button>
+                <button id="tool-circle" onclick="setTool('circle')" class="cad-btn" title="वृत्त (Circle)"><i class="fa-regular fa-circle text-xs"></i></button>
+                <button id="tool-ellipse" onclick="setTool('ellipse')" class="cad-btn" title="दीर्घवृत्त (Ellipse)"><i class="fa-solid fa-egg text-xs"></i></button>
+                <button id="tool-arc" onclick="setTool('arc')" class="cad-btn" title="चाप (Arc)"><i class="fa-solid fa-bezier-curve text-xs"></i></button>
+                
+                <button id="tool-polygon" onclick="setTool('polygon')" class="cad-btn" title="बहुभुज (Polygon)"><i class="fa-solid fa-draw-polygon text-xs"></i></button>
+                <button id="tool-rect" onclick="setTool('rect')" class="cad-btn" title="आयत (Rectangle)"><i class="fa-regular fa-square text-xs"></i></button>
+                <button id="tool-spline" onclick="setTool('spline')" class="cad-btn" title="स्प्लाइन (Spline)"><i class="fa-solid fa-wave-square text-xs"></i></button>
+                <button id="tool-hatch" onclick="setTool('hatch')" class="cad-btn" title="हैचिंग (Hatch)"><i class="fa-solid fa-border-all text-xs"></i></button>
+                <button id="tool-point" onclick="setTool('point')" class="cad-btn" title="बिंदु (Point)"><i class="fa-solid fa-ellipsis text-xs"></i></button>
+            </div>
+            <div class="ribbon-title">आकृतियाँ</div>
+        </div>
+
+        <!-- 2. संपादन (Modify Tools & Delete) -->
+        <div class="ribbon-panel">
+            <div class="grid grid-cols-6 gap-1">
+                <button id="tool-select" onclick="setTool('select')" class="cad-btn" title="चुनें (Select Object)"><i class="fa-solid fa-arrow-pointer text-xs"></i></button>
+                <button id="tool-move" onclick="setTool('move')" class="cad-btn" title="स्थानान्तरण (Move)"><i class="fa-solid fa-arrows-up-down-left-right text-xs"></i></button>
+                <button id="tool-copy" onclick="setTool('copy')" class="cad-btn" title="कॉपी (Copy)"><i class="fa-regular fa-copy text-xs"></i></button>
+                <button id="tool-rotate" onclick="setTool('rotate')" class="cad-btn" title="घुमाएँ (Rotate)"><i class="fa-solid fa-rotate text-xs"></i></button>
+                
+                <!-- Individual Delete Button -->
+                <button onclick="handleDeleteAction()" class="cad-btn cad-btn-danger text-red-400" title="चयनित हटाएं (Delete Selected - Del / Backspace)">
+                    <i class="fa-solid fa-trash-can text-xs"></i>
+                </button>
+
+                <!-- Dedicated ALL DELETE Button -->
+                <button onclick="triggerClearAll()" class="cad-btn cad-btn-danger text-amber-400 border border-amber-500/30 bg-amber-950/20" title="सब साफ़ करें (All Delete / Clear Canvas - Ctrl+Shift+Del)">
+                    <i class="fa-solid fa-dumpster text-xs"></i>
+                </button>
+
+                <button onclick="setTool('extend')" class="cad-btn" title="विस्तार (Extend)"><i class="fa-solid fa-arrows-to-dot text-xs"></i></button>
+                <button onclick="setTool('trim')" class="cad-btn" title="काटें (Trim)"><i class="fa-solid fa-crop-simple text-xs"></i></button>
+                <button onclick="setTool('scale')" class="cad-btn" title="पैमाना (Scale)"><i class="fa-solid fa-expand text-xs"></i></button>
+                <button onclick="setTool('mirror')" class="cad-btn" title="दर्पण (Mirror)"><i class="fa-solid fa-right-left text-xs"></i></button>
+                <button onclick="setTool('fillet')" class="cad-btn" title="फ़िलेट (Fillet)"><i class="fa-solid fa-share text-xs"></i></button>
+                <button onclick="setTool('offset')" class="cad-btn" title="ऑफ़सेट (Offset)"><i class="fa-solid fa-clone text-xs"></i></button>
+            </div>
+            <div class="ribbon-title">संपादन</div>
+        </div>
+
+        <!-- 3. एनोटेशन (Annotations & Dimension) -->
+        <div class="ribbon-panel">
+            <div class="grid grid-cols-4 gap-1">
+                <button id="tool-dim" onclick="setTool('dim')" class="cad-btn" title="रेखीय मापन (Linear Dimension)"><i class="fa-solid fa-ruler-horizontal text-xs"></i></button>
+                <button id="tool-dim-aligned" onclick="setTool('dim')" class="cad-btn" title="संरेखित मापन (Aligned)"><i class="fa-solid fa-ruler-combined text-xs"></i></button>
+                <button id="tool-dim-radius" onclick="setTool('dim-radius')" class="cad-btn" title="त्रिज्या मापन (Radius)"><i class="fa-solid fa-ruler text-xs"></i></button>
+                <button id="tool-text" onclick="setTool('text')" class="cad-btn" title="पाठ जोड़ें (Text)"><i class="fa-solid fa-font text-xs"></i></button>
+            </div>
+            <div class="ribbon-title">एनोटेशन</div>
+        </div>
+
+        <!-- 4. परत (Layers) -->
+        <div class="ribbon-panel">
+            <div class="flex items-center gap-1 mb-1">
+                <button class="cad-btn" title="परत गुण (Layer Properties)"><i class="fa-solid fa-layer-group text-xs text-cyan-400"></i></button>
+                <button class="cad-btn" title="आईड्रॉपर (Eyedropper)"><i class="fa-solid fa-eye-dropper text-xs"></i></button>
+                <button class="cad-btn" title="मैच प्रॉपर्टीज़ (Match)"><i class="fa-solid fa-paint-roller text-xs"></i></button>
+                <button class="cad-btn" title="दृश्यता (Visibility)"><i class="fa-regular fa-eye text-xs"></i></button>
+            </div>
+            <div class="flex items-center gap-1">
+                <select id="layer-select" onchange="changeLayer(this.value)" class="bg-[#101218] border border-[#2a3140] text-cyan-300 text-[11px] rounded px-1.5 py-0.5 outline-none w-24">
+                    <option value="steel">steel</option>
+                    <option value="0">0 (Default)</option>
+                    <option value="dimensions">Dimensions</option>
+                    <option value="outline">Outline</option>
+                </select>
+                <button class="cad-btn" title="लॉक परत (Lock)"><i class="fa-solid fa-lock text-xs"></i></button>
+            </div>
+            <div class="ribbon-title">परत</div>
+        </div>
+
+        <!-- 5. नेविगेशन (Navigation Controls) -->
+        <div class="ribbon-panel">
+            <div class="grid grid-cols-2 gap-1">
+                <button onclick="zoomExtents()" class="cad-btn" title="फिट स्क्रीन (Zoom Extents)"><i class="fa-solid fa-expand text-xs"></i></button>
+                <button id="tool-pan" onclick="setTool('pan')" class="cad-btn" title="पैन (Pan View)"><i class="fa-solid fa-hand text-xs"></i></button>
+                <button onclick="zoomIn()" class="cad-btn" title="ज़ूम इन (Zoom In)"><i class="fa-solid fa-magnifying-glass-plus text-xs"></i></button>
+                <button onclick="zoomOut()" class="cad-btn" title="ज़ूम आउट (Zoom Out)"><i class="fa-solid fa-magnifying-glass-minus text-xs"></i></button>
+            </div>
+            <div class="ribbon-title">नेविगेशन</div>
+        </div>
+
+        <!-- 6. स्ट्रोक (Stroke / Line Styles) -->
+        <div class="ribbon-panel min-w-[140px]">
+            <div class="flex items-center justify-between gap-2 mb-1 px-1">
+                <div class="flex items-center gap-1.5">
+                    <input type="color" id="stroke-color" value="#809fff" onchange="updateStrokeProps()" class="w-5 h-5 bg-transparent cursor-pointer rounded border-0">
+                    <span id="color-rgb" class="text-[10px] text-slate-300 mono">128, 159, 255</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-1">
+                <select id="stroke-style" onchange="updateStrokeProps()" class="bg-[#101218] border border-[#2a3140] text-slate-200 text-[10px] rounded px-1 py-0.5 outline-none">
+                    <option value="solid">ठोस (Solid)</option>
+                    <option value="dashed">डैश (Dashed)</option>
+                    <option value="dotted">डॉटेड (Dotted)</option>
+                </select>
+                <select id="stroke-weight" onchange="updateStrokeProps()" class="bg-[#101218] border border-[#2a3140] text-slate-200 text-[10px] rounded px-1 py-0.5 outline-none">
+                    <option value="1">1.0 px</option>
+                    <option value="2" selected>2.0 px</option>
+                    <option value="4">4.0 px</option>
+                    <option value="6">6.0 px</option>
+                </select>
+            </div>
+            <div class="ribbon-title">स्ट्रोक</div>
+        </div>
+
+    </div>
+
+    <!-- Main Canvas Viewport Area -->
+    <div class="relative flex-1 w-full h-full bg-[#0a0b0e] overflow-hidden" id="canvas-container">
+        <canvas id="cadCanvas" class="w-full h-full"></canvas>
+
+        <!-- Notification Toast Container -->
+        <div id="toast-container" class="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-2"></div>
+
+        <!-- Dynamic On-Screen Coordinates & HUD -->
+        <div class="absolute bottom-4 right-4 bg-[#12151d]/90 border border-[#232a38] rounded-lg px-3 py-1.5 text-xs text-cyan-300 mono shadow-2xl backdrop-blur flex gap-4 pointer-events-none">
+            <span id="hud-coords">X: 0.00, Y: 0.00</span>
+            <span id="hud-elements">ऑब्जेक्ट: 0</span>
+            <span id="hud-zoom">ज़ूम: 100%</span>
+        </div>
+
+        <!-- Selection status pill -->
+        <div id="selection-status" class="absolute top-4 left-4 hidden bg-[#1e2430]/90 border border-amber-500/50 rounded-md px-3 py-1.5 text-xs text-amber-300 shadow-lg backdrop-blur flex items-center gap-2">
+            <i class="fa-solid fa-object-group"></i>
+            <span id="selection-text">1 वस्तु चयनित</span>
+            <button onclick="clearSelection()" class="ml-2 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Model / Layout Switcher Tabs -->
+        <div class="absolute bottom-4 left-4 flex gap-1 bg-[#12151d]/90 border border-[#232a38] rounded-lg p-1 text-xs text-slate-300 shadow-2xl backdrop-blur">
+            <button class="px-3 py-1 bg-cyan-700 text-white font-medium rounded shadow-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-cube text-[10px]"></i> मॉडल (Model)
+            </button>
+            <button class="px-3 py-1 hover:bg-[#1e2430] rounded transition">लेआउट 1</button>
+            <button class="px-3 py-1 hover:bg-[#1e2430] rounded transition">लेआउट 2</button>
+        </div>
+    </div>
+
+    <!-- Active AutoCAD Command Line Bar -->
+    <footer class="bg-[#101218] border-t border-[#232834] px-3 py-2 flex flex-col gap-1 text-xs z-20">
+        <div id="command-history" class="text-slate-400 mono h-5 overflow-hidden flex items-center gap-2 text-[11px]">
+            <span class="text-cyan-500 font-bold">[AutoCAD Web Studio]:</span>
+            <span id="history-text">कमांड टाइप करें या ऊपर Ribbon से टूल चुनें (उदा: LINE, RECT, CIRCLE, SELECT, DELETE, CLEAR)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="text-cyan-400 font-bold tracking-wider mono text-xs">कमांड लिखें:</span>
+            <input id="command-input" type="text" placeholder="यहाँ कमांड टाइप करके Enter दबाएँ..." 
+                   class="flex-1 bg-[#07080b] border border-[#232a38] rounded px-3 py-1 text-slate-200 mono text-xs focus:outline-none focus:border-cyan-500 transition shadow-inner"
+                   onkeydown="handleCommandKey(event)">
+            <button onclick="handleCommandSubmit()" class="px-3 py-1 bg-[#1e2533] hover:bg-[#283244] text-slate-300 rounded border border-[#2e374a] text-xs font-medium transition">
+                निष्पादित (Run)
+            </button>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- CAD ENGINE STATE ---
+        const canvas = document.getElementById('cadCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let currentTool = 'line';
+        let strokeColor = '#809fff';
+        let strokeStyle = 'solid';
+        let strokeWeight = 2;
+        let currentLayer = 'steel';
+
+        let elements = []; // In-memory session objects only
+        let selectedIndex = -1; // Single element selection index
+        let historyStack = [];
+        let redoStack = [];
+
+        // Pan and Zoom
+        let scale = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let isPanning = false;
+        let startPanX = 0;
+        let startPanY = 0;
+
+        // Interactive Drawing State
+        let isDrawing = false;
+        let startX = 0, startY = 0;
+        let currentX = 0, currentY = 0;
+
+        // --- CANVAS INITIALIZATION & RESIZE ---
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            drawScene();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- TOOL SWITCHING ---
+        function setTool(toolName) {
+            currentTool = toolName;
+            document.querySelectorAll('.cad-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById('tool-' + toolName);
+            if (activeBtn) activeBtn.classList.add('active');
+            
+            logCommand(`टूल चुना गया: ${toolName.toUpperCase()}`);
+            if (toolName !== 'select' && toolName !== 'move') {
+                // Keep active selection unless drawing new shape
+            }
+            drawScene();
+        }
+
+        function updateStrokeProps() {
+            strokeColor = document.getElementById('stroke-color').value;
+            strokeStyle = document.getElementById('stroke-style').value;
+            strokeWeight = parseInt(document.getElementById('stroke-weight').value, 10);
+
+            // Hex to RGB text representation
+            const hex = strokeColor.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16) || 0;
+            const g = parseInt(hex.substring(2, 4), 16) || 0;
+            const b = parseInt(hex.substring(4, 6), 16) || 0;
+            document.getElementById('color-rgb').innerText = `${r}, ${g}, ${b}`;
+
+            if (selectedIndex !== -1) {
+                elements[selectedIndex].color = strokeColor;
+                elements[selectedIndex].style = strokeStyle;
+                elements[selectedIndex].weight = strokeWeight;
+            }
+            drawScene();
+        }
+
+        function changeLayer(val) {
+            currentLayer = val;
+            logCommand(`परत बदली गई: ${val}`);
+        }
+
+        function showToast(msg, isError = false) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast-msg px-3 py-1.5 rounded shadow-lg text-xs font-medium border ${isError ? 'bg-red-900/90 border-red-500 text-red-200' : 'bg-cyan-900/90 border-cyan-500 text-cyan-200'}`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+        }
+
+        function logCommand(msg) {
+            document.getElementById('history-text').innerText = msg;
+        }
+
+        // --- DELETE & CLEAR LOGIC (USER ISSUE FIX) ---
+        function handleDeleteAction() {
+            if (selectedIndex !== -1) {
+                // Delete currently selected object
+                saveUndoState();
+                const removed = elements.splice(selectedIndex, 1);
+                selectedIndex = -1;
+                updateSelectionUI();
+                drawScene();
+                logCommand('चयनित वस्तु सफलतापूर्वक हटा दी गई।');
+                showToast('1 वस्तु हटाई गई');
+            } else if (elements.length > 0) {
+                // If no selection, confirm clear all or prompt user
+                if (confirm('कोई विशिष्ट वस्तु चयनित नहीं है। क्या आप पूरे कैनवास को साफ करना चाहते हैं?')) {
+                    triggerClearAll();
+                }
+            } else {
+                showToast('कैनवास में हटाने के लिए कोई वस्तु नहीं है।', true);
+            }
+        }
+
+        function triggerClearAll() {
+            if (elements.length === 0) {
+                showToast('कैनवास पहले से खाली है।', true);
+                return;
+            }
+            saveUndoState();
+            elements = [];
+            selectedIndex = -1;
+            updateSelectionUI();
+            drawScene();
+            logCommand('पूरा कैनवास साफ कर दिया गया।');
+            showToast('पूरा कैनवास हटा दिया गया');
+        }
+
+        function clearSelection() {
+            selectedIndex = -1;
+            updateSelectionUI();
+            drawScene();
+        }
+
+        function updateSelectionUI() {
+            const statusPill = document.getElementById('selection-status');
+            if (selectedIndex !== -1) {
+                statusPill.classList.remove('hidden');
+                const el = elements[selectedIndex];
+                document.getElementById('selection-text').innerText = `1 वस्तु चयनित (${el.type.toUpperCase()})`;
+            } else {
+                statusPill.classList.add('hidden');
+            }
+            document.getElementById('hud-elements').innerText = `ऑब्जेक्ट: ${elements.length}`;
+        }
+
+        // --- MOUSE & CANVAS INTERACTION ---
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+            if (e.button === 1 || currentTool === 'pan') {
+                isPanning = true;
+                startPanX = e.clientX - panX;
+                startPanY = e.clientY - panY;
+                return;
+            }
+
+            if (currentTool === 'select' || currentTool === 'move') {
+                const foundIndex = findElementAt(world.x, world.y);
+                selectedIndex = foundIndex;
+                updateSelectionUI();
+                drawScene();
+                if (foundIndex !== -1) {
+                    logCommand(`वस्तु चुनी गई: #${foundIndex + 1} (${elements[foundIndex].type})`);
+                } else {
+                    logCommand('चयन रद्द किया गया।');
+                }
+                return;
+            }
+
+            if (!isDrawing) {
+                isDrawing = true;
+                startX = world.x; startY = world.y;
+                currentX = world.x; currentY = world.y;
+            } else {
+                finishDrawing(world.x, world.y);
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+            document.getElementById('hud-coords').innerText = `X: ${world.x.toFixed(2)}, Y: ${world.y.toFixed(2)}`;
+
+            if (isPanning) {
+                panX = e.clientX - startPanX;
+                panY = e.clientY - startPanY;
+                drawScene();
+                return;
+            }
+
+            if (isDrawing) {
+                currentX = world.x;
+                currentY = world.y;
+                drawScene();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => { isPanning = false; });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = 1.15;
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldBefore = screenToWorld(mouseX, mouseY);
+
+            if (e.deltaY < 0) {
+                scale *= zoomFactor;
+            } else {
+                scale /= zoomFactor;
+            }
+            scale = Math.max(0.1, Math.min(25, scale));
+
+            const worldAfter = screenToWorld(mouseX, mouseY);
+            panX += (worldAfter.x - worldBefore.x) * scale;
+            panY += (worldAfter.y - worldBefore.y) * scale;
+
+            document.getElementById('hud-zoom').innerText = `ज़ूम: ${Math.round(scale * 100)}%`;
+            drawScene();
+        }, { passive: false });
+
+        // --- KEYBOARD SHORTCUTS ---
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return; // Ignore when typing in input
+            
+            // All Delete shortcut: Ctrl + Shift + Delete
+            if (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+                e.preventDefault();
+                triggerClearAll();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                handleDeleteAction();
+            } else if (e.key === 'Escape') {
+                isDrawing = false;
+                clearSelection();
+                logCommand('क्रिया रद्द की गई');
+            } else if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                triggerUndo();
+            } else if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                triggerRedo();
+            }
+        });
+
+        function finishDrawing(endX, endY) {
+            saveUndoState();
+            const elem = {
+                type: currentTool,
+                color: strokeColor,
+                style: strokeStyle,
+                weight: strokeWeight,
+                layer: currentLayer
+            };
+
+            if (currentTool === 'line') {
+                elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
+            } else if (currentTool === 'rect') {
+                elem.x = Math.min(startX, endX); elem.y = Math.min(startY, endY);
+                elem.w = Math.abs(endX - startX); elem.h = Math.abs(endY - startY);
+            } else if (currentTool === 'circle') {
+                elem.cx = startX; elem.cy = startY; elem.r = Math.hypot(endX - startX, endY - startY);
+            } else if (currentTool === 'dim' || currentTool === 'dim-radius') {
+                elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
+                elem.val = Math.hypot(endX - startX, endY - startY).toFixed(2);
+            } else if (currentTool === 'text') {
+                const textVal = prompt("पाठ दर्ज करें:");
+                if (textVal) { elem.text = textVal; elem.x = startX; elem.y = startY; } else { isDrawing = false; return; }
+            } else {
+                // Fallback line
+                elem.x1 = startX; elem.y1 = startY; elem.x2 = endX; elem.y2 = endY;
+            }
+
+            elements.push(elem);
+            isDrawing = false;
+            selectedIndex = elements.length - 1;
+            updateSelectionUI();
+            drawScene();
+            logCommand(`नयी ${currentTool.toUpperCase()} वस्तु बनाई गई।`);
+        }
+
+        // --- DRAWING RENDER LOOP ---
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2 + panX, canvas.height / 2 + panY);
+            ctx.scale(scale, scale);
+
+            drawGrid();
+
+            // Render all elements
+            elements.forEach((el, index) => {
+                drawElement(el, index === selectedIndex);
+            });
+
+            // Active shape preview during mouse drag
+            if (isDrawing) {
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = strokeWeight / scale;
+                ctx.setLineDash([4 / scale, 4 / scale]);
+                if (currentTool === 'line' || currentTool === 'dim') {
+                    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(currentX, currentY); ctx.stroke();
+                } else if (currentTool === 'rect') {
+                    ctx.strokeRect(Math.min(startX, currentX), Math.min(startY, currentY), Math.abs(currentX - startX), Math.abs(currentY - startY));
+                } else if (currentTool === 'circle') {
+                    ctx.beginPath(); ctx.arc(startX, startY, Math.hypot(currentX - startX, currentY - startY), 0, Math.PI * 2); ctx.stroke();
+                }
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+        }
+
+        function drawGrid() {
+            const step = 40;
+            const left = -canvas.width / 2 - panX;
+            const right = canvas.width / 2 - panX;
+            const top = -canvas.height / 2 - panY;
+            const bottom = canvas.height / 2 - panY;
+
+            ctx.strokeStyle = '#181d26';
+            ctx.lineWidth = 0.5 / scale;
+            ctx.beginPath();
+
+            for (let x = Math.floor(left / step) * step; x <= right; x += step) {
+                ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+            }
+            for (let y = Math.floor(top / step) * step; y <= bottom; y += step) {
+                ctx.moveTo(left, y); ctx.lineTo(right, y);
+            }
+            ctx.stroke();
+
+            // Main Axes (Origin Lines)
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 1.2 / scale;
+            ctx.beginPath();
+            ctx.moveTo(left, 0); ctx.lineTo(right, 0);
+            ctx.moveTo(0, top); ctx.lineTo(0, bottom);
+            ctx.stroke();
+        }
+
+        function drawElement(el, isSelected) {
+            ctx.strokeStyle = isSelected ? '#facc15' : el.color;
+            ctx.fillStyle = isSelected ? '#facc15' : el.color;
+            ctx.lineWidth = (isSelected ? el.weight + 1.5 : el.weight) / scale;
+
+            if (el.style === 'dashed') ctx.setLineDash([8 / scale, 5 / scale]);
+            else if (el.style === 'dotted') ctx.setLineDash([2 / scale, 3 / scale]);
+            else ctx.setLineDash([]);
+
+            if (el.type === 'line') {
+                ctx.beginPath(); ctx.moveTo(el.x1, el.y1); ctx.lineTo(el.x2, el.y2); ctx.stroke();
+            } else if (el.type === 'rect') {
+                ctx.strokeRect(el.x, el.y, el.w, el.h);
+            } else if (el.type === 'circle') {
+                ctx.beginPath(); ctx.arc(el.cx, el.cy, el.r, 0, Math.PI * 2); ctx.stroke();
+            } else if (el.type === 'dim' || el.type === 'dim-radius') {
+                ctx.beginPath(); ctx.moveTo(el.x1, el.y1); ctx.lineTo(el.x2, el.y2); ctx.stroke();
+                ctx.font = `${11 / scale}px 'JetBrains Mono', sans-serif`;
+                ctx.fillText(`${el.val} mm`, (el.x1 + el.x2) / 2, (el.y1 + el.y2) / 2 - 4 / scale);
+            } else if (el.type === 'text') {
+                ctx.font = `${14 / scale}px Inter, sans-serif`;
+                ctx.fillText(el.text, el.x, el.y);
+            } else {
+                ctx.beginPath(); ctx.moveTo(el.x1, el.y1); ctx.lineTo(el.x2, el.y2); ctx.stroke();
+            }
+
+            // Selection Boundary Highlight Handles
+            if (isSelected) {
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#facc15';
+                const handleSize = 5 / scale;
+                let hx = el.x1 || el.x || el.cx || 0;
+                let hy = el.y1 || el.y || el.cy || 0;
+                ctx.fillRect(hx - handleSize/2, hy - handleSize/2, handleSize, handleSize);
+            }
+            ctx.setLineDash([]);
+        }
+
+        function screenToWorld(sx, sy) {
+            return {
+                x: (sx - canvas.width / 2 - panX) / scale,
+                y: (sy - canvas.height / 2 - panY) / scale
+            };
+        }
+
+        function findElementAt(wx, wy) {
+            const tolerance = 12 / scale;
+            for (let i = elements.length - 1; i >= 0; i--) {
+                const el = elements[i];
+                if (el.type === 'rect' && wx >= el.x - tolerance && wx <= el.x + el.w + tolerance && wy >= el.y - tolerance && wy <= el.y + el.h + tolerance) {
+                    return i;
+                }
+                if (el.type === 'circle' && Math.abs(Math.hypot(wx - el.cx, wy - el.cy) - el.r) <= tolerance) {
+                    return i;
+                }
+                if ((el.type === 'line' || el.type === 'dim') && pointToSegmentDistance(wx, wy, el.x1, el.y1, el.x2, el.y2) <= tolerance) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+            const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+            if (l2 === 0) return Math.hypot(px - x1, py - y1);
+            let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+        }
+
+        // --- HISTORY UNDO / REDO ---
+        function saveUndoState() {
+            historyStack.push(JSON.stringify(elements));
+            redoStack = [];
+        }
+
+        function triggerUndo() {
+            if (historyStack.length > 0) {
+                redoStack.push(JSON.stringify(elements));
+                elements = JSON.parse(historyStack.pop());
+                selectedIndex = -1;
+                updateSelectionUI();
+                drawScene();
+                logCommand('पूर्ववत (Undo) किया गया।');
+            } else {
+                showToast('कोई पूर्ववत इतिहास उपलब्ध नहीं है', true);
+            }
+        }
+
+        function triggerRedo() {
+            if (redoStack.length > 0) {
+                historyStack.push(JSON.stringify(elements));
+                elements = JSON.parse(redoStack.pop());
+                selectedIndex = -1;
+                updateSelectionUI();
+                drawScene();
+                logCommand('पुनरावृत्ति (Redo) की गई।');
+            }
+        }
+
+        function triggerNew() {
+            if (elements.length > 0 && confirm("क्या आप नया खाली कैनवास शुरू करना चाहते हैं?")) {
+                triggerClearAll();
+            }
+        }
+
+        function zoomIn() { scale *= 1.25; drawScene(); document.getElementById('hud-zoom').innerText = `ज़ूम: ${Math.round(scale * 100)}%`; }
+        function zoomOut() { scale /= 1.25; drawScene(); document.getElementById('hud-zoom').innerText = `ज़ूम: ${Math.round(scale * 100)}%`; }
+        function zoomExtents() { scale = 1.0; panX = 0; panY = 0; drawScene(); document.getElementById('hud-zoom').innerText = `ज़ूम: 100%`; }
+
+        function downloadCanvas() {
+            const link = document.createElement('a');
+            link.download = 'autocad-drawing.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('ड्रॉइंग सफलतापूर्वक डाउनलोड हुई');
+        }
+
+        function handleCommandKey(e) {
+            if (e.key === 'Enter') handleCommandSubmit();
+        }
+
+        function handleCommandSubmit() {
+            const input = document.getElementById('command-input');
+            const cmd = input.value.trim().toLowerCase();
+            input.value = '';
+
+            if (!cmd) return;
+
+            if (cmd === 'line' || cmd === 'l') setTool('line');
+            else if (cmd === 'rect' || cmd === 'rec') setTool('rect');
+            else if (cmd === 'circle' || cmd === 'c') setTool('circle');
+            else if (cmd === 'select' || cmd === 's') setTool('select');
+            else if (cmd === 'delete' || cmd === 'del' || cmd === 'erase') handleDeleteAction();
+            else if (cmd === 'clear') triggerClearAll();
+            else if (cmd === 'undo') triggerUndo();
+            else if (cmd === 'redo') triggerRedo();
+            else showToast(`अमान्य कमांड: ${cmd}`, true);
+        }
+
+        window.onload = function() {
+            resizeCanvas();
+            updateStrokeProps();
+            updateSelectionUI();
+        };
+    </script>
+</body>
+</html>
