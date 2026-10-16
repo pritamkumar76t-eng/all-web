@@ -128,7 +128,7 @@
 
             <!-- Undo / Redo -->
             <div class="flex items-center gap-1">
-                <button onclick="triggerUndo()" class="cad-btn" title="पूर्ववत करें (Undo - Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>Volat
+                <button onclick="triggerUndo()" class="cad-btn" title="पूर्ववत करें (Undo - Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
                 <button onclick="triggerRedo()" class="cad-btn" title="फिर से करें (Redo - Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
             </div>
         </div>
@@ -144,7 +144,7 @@
             </div>
             <div class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-amber-400">
                 <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>अस्थायी सत्र (Connect - नो ऑटो-सेव)</span>
+                <span>अस्थायी सत्र (Non - नो ऑटो-सेव)</span>
             </div>
         </div>
     </header>
@@ -1102,8 +1102,9 @@
         });
 
         function renderOthers() {
-            const ids = Object.keys(allUsers).filter(id => id !== uid).sort((a, b) => {
-                const A = allUsers[a], B = allUsers[b];
+            const M = Object.assign({}, demoUsers, allUsers);
+            const ids = Object.keys(M).filter(id => id !== uid).sort((a, b) => {
+                const A = M[a], B = M[b];
                 if ((A.status === 'active') !== (B.status === 'active')) return A.status === 'active' ? -1 : 1;
                 return (B.clicks || 0) - (A.clicks || 0);
             });
@@ -1113,7 +1114,7 @@
                 return;
             }
             ids.forEach(id => {
-                const u = allUsers[id];
+                const u = M[id];
                 const isActive = u.status === 'active';
                 const row = document.createElement('div');
                 row.className = 'cursor-pointer border rounded-md px-3 py-2 mb-1.5 hover:bg-[#1a2030] ' + (id === viewId ? 'bg-[#16314a] border-cyan-400' : 'border-[#232834]');
@@ -1151,7 +1152,7 @@
         }
 
         function renderOHead() {
-            const u = allUsers[viewId];
+            const u = allUsers[viewId] || demoUsers[viewId];
             if (!u) return;
             oHead.textContent = (u.name || viewId) + ' • ' + (u.status === 'active' ? 'अभी active' : 'offline') +
                 ' • क्लिक: ' + (u.clicks || 0) + ' • ऑब्जेक्ट: ' + viewEls.length;
@@ -1165,6 +1166,14 @@
         window.addEventListener('resize', () => { if (!oModal.classList.contains('hidden')) sizeO(); });
 
         function viewUser(id) {
+            if (demoUsers[id]) { // demo user: सिर्फ local, Firebase / chat नहीं
+                if (viewRef) { viewRef.off(); viewRef = null; }
+                viewId = id; closeDM();
+                viewEls = (demoEls[id] || []).slice();
+                oEmpty.style.display = viewEls.length ? 'none' : 'flex';
+                renderOthers(); renderOHead(); drawO();
+                return;
+            }
             if (viewRef) viewRef.off();
             viewId = id;
             viewEls = [];
@@ -1788,7 +1797,8 @@
         const dmTitle = document.getElementById('dm-title');
 
         function updOthersBtn() {
-            const n = Object.keys(allUsers).filter(id => id !== uid && allUsers[id].status === 'active').length;
+            const n = Object.keys(allUsers).filter(id => id !== uid && allUsers[id].status === 'active').length +
+                      Object.keys(demoUsers).filter(id => demoUsers[id].status === 'active').length;
             oBtnText.textContent = 'अन्य Users' + (n ? ' (' + n + ' active)' : '') + (dmTotal ? ' • 💬' + dmTotal : '');
         }
 
@@ -1853,6 +1863,123 @@
             updOthersBtn();
             if (!oModal.classList.contains('hidden')) renderOthers();
         });
+
+
+        // ===== Demo users: सिर्फ इसी browser में चलते हैं =====
+        // Firebase में कुछ नहीं लिखते, "members" की गिनती में नहीं जुड़ते। सिर्फ "अन्य Users" में दिखते हैं।
+        const DEMO_ON = true;   // बंद करना हो तो false कर दें
+        const DEMO_NAMES = ['Rahul', 'Priya', 'Aman', 'Sneha', 'Vikas', 'Pooja', 'Rohit', 'Neha', 'Ankit', 'Kajal',
+                            'Deepak', 'Simran', 'Mohit', 'Anjali', 'Sandeep', 'Ravi', 'Komal', 'Nitin', 'Isha', 'Gaurav'];
+        const DCOL = ['#809fff', '#22d3ee', '#facc15', '#f472b6', '#86efac', '#fb923c'];
+        const demoUsers = {}, demoEls = {};
+        const rnd = (a, b) => a + Math.random() * (b - a);
+        const pick = a => a[Math.floor(Math.random() * a.length)];
+
+        function newDemoName() {
+            const used = new Set(Object.values(allUsers).map(u => u && u.name).concat(Object.values(demoUsers).map(u => u.name)));
+            for (let i = 0; i < 30; i++) {
+                const n = Math.random() < 0.6 ? pick(DEMO_NAMES) : 'User-' + Math.random().toString(36).slice(2, 6);
+                if (!used.has(n)) return n;
+            }
+            return 'User-' + Math.random().toString(36).slice(2, 6);
+        }
+        const mk = (type, o, c) => Object.assign({ type: type, color: c, style: 'solid', weight: 2, layer: '0' }, o);
+        const L = (x1, y1, x2, y2, c) => mk('line', { x1, y1, x2, y2 }, c);
+        const R = (x, y, w, h, c) => mk('rect', { x, y, w, h }, c);
+        const C = (cx, cy, r, c) => mk('circle', { cx, cy, r }, c);
+        const D = (x1, y1, x2, y2, c) => mk('dim', { x1, y1, x2, y2, val: Math.hypot(x2 - x1, y2 - y1).toFixed(2) }, c);
+
+        const DEMO_TPL = [
+            function room() {
+                const c = pick(DCOL), c2 = pick(DCOL), x = rnd(100, 400), y = rnd(100, 300), W = rnd(320, 460), H = rnd(220, 320);
+                return [R(x, y, W, H, c), L(x + W * 0.6, y, x + W * 0.6, y + H * 0.65, c), L(x + W * 0.6, y + H * 0.65, x + W, y + H * 0.65, c),
+                        C(x + W * 0.6, y + H * 0.65, 9, c2), R(x + W * 0.1, y + H * 0.15, 60, 40, c2),
+                        D(x, y - 20, x + W, y - 20, c2), D(x - 20, y, x - 20, y + H, c2),
+                        mk('text', { x: x + W * 0.2, y: y + H * 0.7, text: pick(['HALL', 'ROOM', 'KITCHEN', 'BED']) }, c2)];
+            },
+            function house() {
+                const c = pick(DCOL), c2 = pick(DCOL), x = rnd(100, 400), y = rnd(200, 350), W = rnd(260, 380), H = rnd(150, 210);
+                return [R(x, y, W, H, c), L(x, y, x + W / 2, y - H * 0.6, c), L(x + W / 2, y - H * 0.6, x + W, y, c),
+                        R(x + W * 0.42, y + H * 0.4, W * 0.16, H * 0.6, c2), R(x + W * 0.1, y + H * 0.25, 45, 45, c2), R(x + W * 0.72, y + H * 0.25, 45, 45, c2),
+                        D(x, y + H + 22, x + W, y + H + 22, c2)];
+            },
+            function part() {
+                const c = pick(DCOL), c2 = pick(DCOL), cx = rnd(200, 450), cy = rnd(200, 400), r = rnd(90, 140), els = [];
+                els.push(C(cx, cy, r, c), C(cx, cy, r * 0.6, c), C(cx, cy, r * 0.15, c2), L(cx - r - 20, cy, cx + r + 20, cy, c2), L(cx, cy - r - 20, cx, cy + r + 20, c2));
+                for (let i = 0; i < 4; i++) {
+                    const a = Math.PI / 4 + i * Math.PI / 2;
+                    els.push(C(cx + Math.cos(a) * r * 0.8, cy + Math.sin(a) * r * 0.8, r * 0.08, c2));
+                }
+                els.push(mk('dim-radius', { x1: cx, y1: cy, x2: cx + r * 0.7, y2: cy - r * 0.7, val: r.toFixed(2) }, c2));
+                return els;
+            }
+        ];
+
+        function demoSlot(id) {
+            const u = demoUsers[id] = { name: newDemoName(), status: 'active', clicks: Math.round(rnd(8, 60)), lastSeen: Date.now() };
+            let plan = [], idx = 0, timer = null;
+            function refresh() {
+                if (viewId === id) {
+                    viewEls = (demoEls[id] || []).slice();
+                    oEmpty.style.display = viewEls.length ? 'none' : 'flex';
+                    renderOHead(); drawO();
+                }
+                if (!oModal.classList.contains('hidden') && Date.now() - (demoSlot.lastList || 0) > 1500) { demoSlot.lastList = Date.now(); renderOthers(); }
+                updOthersBtn();
+            }
+            function fresh(pre) {
+                plan = pick(DEMO_TPL)(); idx = 0; demoEls[id] = [];
+                while (pre-- > 0 && idx < plan.length) demoEls[id].push(plan[idx++]);
+            }
+            // हर object धीरे-धीरे "बनता" दिखे (रेखा लंबी होती है, आयत/वृत्त बड़े होते हैं)
+            function part(el, f) {
+                const o = Object.assign({}, el);
+                if (el.type === 'line' || el.type === 'dim' || el.type === 'dim-radius') {
+                    o.x2 = el.x1 + (el.x2 - el.x1) * f; o.y2 = el.y1 + (el.y2 - el.y1) * f;
+                    if (el.val !== undefined && el.type === 'dim') o.val = Math.hypot(o.x2 - o.x1, o.y2 - o.y1).toFixed(2);
+                } else if (el.type === 'rect') { o.w = el.w * f; o.h = el.h * f; }
+                else if (el.type === 'circle') { o.r = Math.max(1, el.r * f); }
+                return o;
+            }
+            function step() {
+                clearTimeout(timer);
+                if (u.status !== 'active') return;
+                if (idx < plan.length) {
+                    const el = plan[idx++], list = demoEls[id];
+                    const fr = [0.3, 0.6, 1];
+                    let k = 0;
+                    list.push(part(el, fr[0]));
+                    u.clicks += Math.round(rnd(1, 3)); u.lastSeen = Date.now();
+                    refresh();
+                    (function grow() {
+                        k++;
+                        if (k < fr.length) {
+                            list[list.length - 1] = part(el, fr[k]);
+                            refresh();
+                            timer = setTimeout(grow, 160);
+                        } else {
+                            timer = setTimeout(step, rnd(1500, 2000)); // लगभग हर 2 सेकंड में एक object
+                        }
+                    })();
+                } else {
+                    timer = setTimeout(() => { fresh(0); refresh(); step(); }, rnd(4000, 7000)); // पूरा होने पर थोड़ा रुककर नया ढाँचा
+                }
+            }
+            function cycle() { // कुछ देर बाद चला जाए, फिर नए नाम से लौटे
+                setTimeout(() => {
+                    u.status = 'offline'; u.lastSeen = Date.now(); clearTimeout(timer); refresh();
+                    setTimeout(() => {
+                        u.name = newDemoName(); u.clicks = Math.round(rnd(3, 25));
+                        u.status = 'active'; u.lastSeen = Date.now();
+                        fresh(0); refresh(); step(); cycle();
+                    }, rnd(15000, 40000));
+                }, rnd(12 * 60000, 25 * 60000));
+            }
+            fresh(Math.round(rnd(1, 3)));
+            setTimeout(() => { refresh(); step(); }, rnd(500, 4000));
+            cycle();
+        }
+        if (DEMO_ON) { demoSlot('demo_1'); demoSlot('demo_2'); }
 
         // --- 12 AM reset होने पर यहाँ का canvas भी साफ ---
         let firstResetEvent = true;
