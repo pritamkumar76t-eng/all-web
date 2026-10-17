@@ -103,6 +103,8 @@
             100% { opacity: 0; transform: translateY(-10px); }
         }
     </style>
+    <!-- SheetJS: Excel (.xlsx) import/export -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="h-screen w-screen flex flex-col justify-between select-none">
 
@@ -135,16 +137,17 @@
 
         <!-- Session Status -->
         <div class="flex items-center gap-3">
+            <button id="xl-open" class="flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-semibold text-white shadow" style="background:#1d6f42;border:1px solid #4ade80" title="Excel शीट खोलें"><i class="fa-solid fa-table-cells"></i><span>Excel</span></button>
             <button id="others-btn" class="flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-semibold text-white shadow transition-colors duration-700" style="background:#0e7490;border:1px solid #22d3ee" title="दूसरे users क्या कर रहे हैं देखें">
                 <i class="fa-solid fa-users"></i><span id="others-btn-text">अन्य Users</span>
             </button>
             <div id="presence-pill" class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-slate-300">
                 <span id="presence-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
-                <span id="presence-text">Firebase कनेक्ट हो रहा है…</span>
+                <span id="presence-text">Connecting कनेक्ट हो रहा है…</span>
             </div>
             <div class="flex items-center gap-2 bg-[#181d27] border border-[#262d3d] px-2.5 py-1 rounded-full text-[11px] text-amber-400">
                 <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>अस्थायी सत्र (Connecting - नो ऑटो-सेव)</span>
+                <span>अस्थायी सत्र (NO - नो ऑटो-सेव)</span>
             </div>
         </div>
     </header>
@@ -1052,6 +1055,7 @@
                     <div id="others-wrap" class="flex-1 relative bg-[#0a0b0e]">
                         <canvas id="others-canvas" class="w-full h-full block"></canvas>
                         <div id="others-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-600 pointer-events-none">ड्रॉइंग नहीं है</div>
+                        <div id="others-xl" class="xlv absolute inset-0 overflow-auto bg-white" style="display:none"></div>
                     </div>
                     <!-- इस user से अलग (private) chat -->
                     <div id="dm-box" class="hidden flex-col border-t border-[#232a38]" style="height:16rem;">
@@ -1190,20 +1194,28 @@
             myRef.update({ status: 'offline', lastSeen: SV.TIMESTAMP });
         }
 
-        document.addEventListener('mousedown', () => {
+        function markActive(isClick) {
             const today = todayKey();
             const base = { status: 'active', lastActive: SV.TIMESTAMP, lastSeen: SV.TIMESTAMP, date: today };
             if (myDate !== today) {
                 myDate = today;
-                base.clicks = 1; // नया दिन — 0 से शुरू
-            } else {
+                base.clicks = isClick ? 1 : 0; // नया दिन — 0 से शुरू
+            } else if (isClick) {
                 base.clicks = SV.increment(1);
             }
             myRef.update(base);
 
             clearTimeout(idleTimer);
             idleTimer = setTimeout(goOffline, ACTIVE_TIMEOUT);
-        }, true);
+        }
+        // Excel cells par pointerdown mein preventDefault hota hai, isliye mousedown nahi aata -> pointerdown use karo
+        document.addEventListener('pointerdown', () => markActive(true), true);
+        // Excel mein typing keyboard se hoti hai: key dabane par bhi active rakho (click count nahi badhega)
+        let lastKeyPing = 0;
+        const keyPing = () => { const t = Date.now(); if (t - lastKeyPing < 2000) return; lastKeyPing = t; markActive(false); };
+        document.addEventListener('keydown', keyPing, true);
+        document.addEventListener('input', keyPing, true);
+        window.addEventListener('wheel', keyPing, { capture: true, passive: true });
 
         // --- Drawing (diagram) Firebase में sync ---
         let lastSynced = '';
@@ -1233,11 +1245,41 @@
         const oCx = oCv.getContext('2d');
         const hint = document.getElementById('hint-arrow');
         let allUsers = {}, viewId = null, viewRef = null, viewEls = [];
+        // Excel page ke liye bridge (presence + sharing)
+        window.CADX = { db, uid, SV, users: () => allUsers, avatar: (a, b, c) => makeAvatar(a, b, c), color: id => colorFor(id), onUsers: null };
+        let oTab = 'cad', viewXl = null, vxRef = null, xlP = {};
+        const oXl = document.getElementById('others-xl');
+        function setTab(t) {
+            oTab = t;
+            oCv.style.display = t === 'cad' ? 'block' : 'none';
+            oXl.style.display = t === 'xl' ? 'block' : 'none';
+            oEmpty.style.display = (t === 'cad' && !viewEls.length) ? 'flex' : 'none';
+            if (t === 'cad') drawO(); else renderXl();
+        }
+        const xlAct = p => p ? (p.e ? p.c + ' में लिख रहा है' + (p.v ? ': "' + (p.v.length > 40 ? p.v.slice(0, 40) + '…' : p.v) + '"' : '') : (p.g || p.c) + ' चुना है') : '';
+        function renderXl() {
+            if (oTab !== 'xl' || !viewId) return;
+            if (!viewXl) { oXl.innerHTML = '<div style="padding:24px;color:#777;font-size:12px">इस user की Excel शीट अभी नहीं है</div>'; return; }
+            if (window.XLV) window.XLV.render(oXl, viewXl, xlP[viewId], colorFor(viewId));
+        }
+        // user jo kar raha hai wahi dikhao: Excel mein hai to Excel, warna CAD (CAD khali ho aur sheet ho to sheet)
+        function autoView() {
+            if (!viewId) return;
+            const m = xlP[viewId] ? 'xl' : (!viewEls.length && viewXl ? 'xl' : 'cad');
+            if (m !== oTab) setTab(m); else if (m === 'xl') renderXl();
+        }
+        setTab('cad');
+        db.ref('xl/p').on('value', s => {
+            xlP = s.val() || {};
+            updOthersBtn();
+            if (!oModal.classList.contains('hidden')) { renderOthers(); renderOHead(); autoView(); }
+        });
 
         const fmtT = ts => ts ? new Date(ts).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '-';
 
         db.ref('users').on('value', s => {
             allUsers = s.val() || {};
+            if (window.CADX && window.CADX.onUsers) window.CADX.onUsers();
             updGroupInfo();
             updOthersBtn();
             if (!oModal.classList.contains('hidden')) { renderOthers(); renderOHead(); }
@@ -1246,7 +1288,8 @@
         function renderOthers() {
             const ids = Object.keys(allUsers).filter(id => id !== uid).sort((a, b) => {
                 const A = allUsers[a], B = allUsers[b];
-                if ((A.status === 'active') !== (B.status === 'active')) return A.status === 'active' ? -1 : 1;
+                const aA = A.status === 'active' || !!xlP[a], bA = B.status === 'active' || !!xlP[b];
+                if (aA !== bA) return aA ? -1 : 1;
                 return (B.clicks || 0) - (A.clicks || 0);
             });
             oList.innerHTML = '';
@@ -1256,7 +1299,7 @@
             }
             ids.forEach(id => {
                 const u = allUsers[id];
-                const isActive = u.status === 'active';
+                const isActive = u.status === 'active' || !!xlP[id];
                 const row = document.createElement('div');
                 row.className = 'cursor-pointer border rounded-md px-3 py-2 mb-1.5 hover:bg-[#1a2030] ' + (id === viewId ? 'bg-[#16314a] border-cyan-400' : 'border-[#232834]');
                 // pointerdown: active user का data बार-बार बदलता है और list फिर बनती है,
@@ -1285,7 +1328,7 @@
 
                 const sub = document.createElement('div');
                 sub.className = 'text-[10px] mt-1 ' + (isActive ? 'text-green-400' : 'text-slate-500');
-                sub.textContent = (isActive ? 'अभी active' : 'offline') + ' • ' + fmtT(u.lastSeen);
+                sub.textContent = (isActive ? 'अभी active' : 'offline') + ' • ' + fmtT(u.lastSeen) + (xlP[id] ? ' • 📊 Excel ' + xlAct(xlP[id]) : '');
 
                 row.append(top, sub);
                 oList.appendChild(row);
@@ -1295,8 +1338,9 @@
         function renderOHead() {
             const u = allUsers[viewId];
             if (!u) return;
-            oHead.textContent = (u.name || viewId) + ' • ' + (u.status === 'active' ? 'अभी active' : 'offline') +
-                ' • क्लिक: ' + (u.clicks || 0) + ' • ऑब्जेक्ट: ' + viewEls.length;
+            oHead.textContent = (u.name || viewId) + ' • ' + ((u.status === 'active' || xlP[viewId]) ? 'अभी active' : 'offline') +
+                ' • क्लिक: ' + (u.clicks || 0) + ' • ऑब्जेक्ट: ' + viewEls.length +
+                (xlP[viewId] ? ' • 📊 Excel: ' + xlAct(xlP[viewId]) : '');
         }
 
         function sizeO() {
@@ -1309,15 +1353,23 @@
         function viewUser(id) {
             if (viewRef) viewRef.off();
             viewId = id;
-            viewEls = [];
-            openDM(id);
+            viewEls = []; viewXl = null;
+            if (vxRef) vxRef.off();
+            vxRef = db.ref('xl/s/' + id);
+            vxRef.on('value', s => {
+                const v = s.val();
+                try { viewXl = v && v.d ? JSON.parse(v.d) : null; } catch (e) { viewXl = null; }
+                autoView(); renderOHead();
+            });
+            setTab(xlP[id] ? 'xl' : 'cad');
             renderOthers();
             renderOHead();
             viewRef = db.ref('drawings/' + id);
             viewRef.on('value', s => {
                 const v = s.val();
                 try { viewEls = v && v.data ? JSON.parse(v.data) : []; } catch (e) { viewEls = []; }
-                oEmpty.style.display = viewEls.length ? 'none' : 'flex';
+                oEmpty.style.display = (oTab === 'cad' && !viewEls.length) ? 'flex' : 'none';
+                autoView();
                 renderOHead();
                 drawO();
             });
@@ -1343,7 +1395,8 @@
             oModal.classList.add('hidden');
             oModal.classList.remove('flex');
             if (viewRef) { viewRef.off(); viewRef = null; }
-            viewId = null; viewEls = [];
+            if (vxRef) { vxRef.off(); vxRef = null; }
+            viewId = null; viewEls = []; viewXl = null;
             closeDM();
         }
 
@@ -1900,7 +1953,7 @@
         const dmTitle = document.getElementById('dm-title');
 
         function updOthersBtn() {
-            const n = Object.keys(allUsers).filter(id => id !== uid && allUsers[id].status === 'active').length;
+            const n = Object.keys(allUsers).filter(id => id !== uid && (allUsers[id].status === 'active' || xlP[id])).length;
             oBtnText.textContent = 'अन्य Users' + (n ? ' (' + n + ' active)' : '') + (dmTotal ? ' • 💬' + dmTotal : '');
         }
 
@@ -1977,5 +2030,737 @@
         window.addEventListener('pagehide', goOffline);
     })();
     </script>
+<!-- ===================== EXCEL SHEET ===================== -->
+<style>
+#xl{position:fixed;inset:0;z-index:49;display:flex;flex-direction:column;background:#f3f3f3;color:#1f2937;font:13px Inter,sans-serif;user-select:none;-webkit-user-select:none}
+#xl.hidden{display:none}
+#xl input,#xl select{user-select:text;-webkit-user-select:text}
+.xl-top{background:#1d6f42;color:#fff;display:flex;align-items:center;gap:10px;padding:7px 12px}
+.xl-top b{font-size:14px;font-weight:600}
+.xl-x{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:4px;padding:3px 10px;cursor:pointer;font:inherit}
+.xl-x:hover{background:rgba(255,255,255,.28)}
+.xl-tb{display:flex;gap:2px;align-items:center;padding:5px 8px;background:#fff;border-bottom:1px solid #d4d4d4;overflow-x:auto;white-space:nowrap}
+.xl-b{min-width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid transparent;border-radius:4px;background:none;color:#333;cursor:pointer;padding:0 7px;font:inherit}
+.xl-b:hover{background:#e6f2ec;border-color:#b7d9c6}
+.xl-b.on{background:#cfe7d9;border-color:#8fc4a6}
+.xl-sep{width:1px;height:20px;background:#d4d4d4;margin:0 4px;flex:none}
+.xl-sw{width:18px;height:18px;padding:0;border:0;background:none;cursor:pointer}
+#xl-nf{height:28px;border:1px solid #cfcfcf;border-radius:4px;background:#fff;font:inherit;padding:0 4px}
+.xl-fb{display:flex;align-items:center;gap:6px;padding:4px 8px;background:#fff;border-bottom:1px solid #d4d4d4}
+.xl-fb input{height:26px;border:1px solid #cfcfcf;border-radius:3px;padding:0 6px;font:inherit;outline:none;background:#fff;color:#111}
+.xl-fb input:focus{border-color:#1d6f42}
+#xl-nm{width:84px;text-align:center}
+#xl-fx{flex:1;min-width:0}
+.xl-fb i{color:#1d6f42;font-style:italic;font-weight:600}
+#xl-sc{flex:1;overflow:auto;position:relative;background:#fff;outline:none}
+#xl table{border-collapse:separate;border-spacing:0;table-layout:fixed}
+#xl th,#xl td{box-sizing:border-box;height:22px;border-right:1px solid #e1e1e1;border-bottom:1px solid #e1e1e1}
+#xl td{padding:0 4px;line-height:20px;white-space:nowrap;overflow:hidden;cursor:cell;font-variant-numeric:tabular-nums}
+#xl thead th{position:sticky;top:0;z-index:3;height:24px;background:#efefef;color:#555;font-weight:500;border-color:#cfcfcf}
+#xl tbody th{position:sticky;left:0;z-index:2;background:#efefef;color:#555;font-weight:500;font-size:11px;border-color:#cfcfcf}
+#xl thead th.cr{left:0;z-index:5}
+#xl th.hl{background:#d3e7dc;color:#145a32}
+#xl th .rz{position:absolute;right:-3px;top:0;bottom:0;width:7px;cursor:col-resize;z-index:6}
+#xl-sb{display:none;position:absolute;z-index:1;pointer-events:none;box-sizing:border-box;border:1px solid #1d6f42;background:rgba(29,111,66,.1)}
+#xl-ac{display:none;position:absolute;z-index:1;pointer-events:none;box-sizing:border-box;border:2px solid #1d6f42}
+#xl-ed{display:none;position:absolute;z-index:1;box-sizing:border-box;border:2px solid #1d6f42;padding:0 4px;font:13px Inter,sans-serif;outline:none;background:#fff;color:#111}
+.xl-st{display:flex;justify-content:space-between;gap:12px;padding:4px 12px;background:#e9e9e9;border-top:1px solid #d0d0d0;font-size:11.5px;color:#555}
+.xlv table{border-collapse:collapse;font:12px Inter,sans-serif;background:#fff;color:#111}
+.xlv td,.xlv th{border:1px solid #e1e1e1;padding:0 6px;height:21px;white-space:nowrap;max-width:240px;overflow:hidden;min-width:70px}
+.xlv th{background:#efefef;color:#555;font-weight:500;position:sticky;top:0;z-index:2}
+.xlv th.rn{left:0;min-width:36px;z-index:3;text-align:center}
+</style>
+
+<div id="xl" class="hidden">
+    <div class="xl-top">
+        <i class="fa-solid fa-table-cells"></i><b>Excel शीट</b>
+        <span id="xl-msg" style="flex:1;opacity:.9;font-size:12px"></span>
+        <button id="xl-ub" class="xl-x"><i class="fa-solid fa-users"></i> <span id="xl-ub-t">सब Users</span></button>
+        <button id="xl-close" class="xl-x"><i class="fa-solid fa-xmark"></i> CAD पर वापस</button>
+    </div>
+    <div class="xl-tb" id="xl-tb">
+        <button class="xl-b" data-a="undo" title="पूर्ववत (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+        <button class="xl-b" data-a="redo" title="फिर से (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+        <span class="xl-sep"></span>
+        <button class="xl-b" id="xl-bb" data-a="b" title="बोल्ड (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
+        <button class="xl-b" id="xl-bi" data-a="i" title="इटैलिक (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
+        <button class="xl-b" id="xl-bu" data-a="u" title="अंडरलाइन (Ctrl+U)"><i class="fa-solid fa-underline"></i></button>
+        <span class="xl-sep"></span>
+        <button class="xl-b" data-a="l" title="बाएँ"><i class="fa-solid fa-align-left"></i></button>
+        <button class="xl-b" data-a="c" title="बीच में"><i class="fa-solid fa-align-center"></i></button>
+        <button class="xl-b" data-a="r" title="दाएँ"><i class="fa-solid fa-align-right"></i></button>
+        <span class="xl-sep"></span>
+        <label class="xl-b" title="टेक्स्ट रंग"><i class="fa-solid fa-font"></i><input type="color" id="xl-co" class="xl-sw" value="#d32f2f"></label>
+        <label class="xl-b" title="सेल का रंग"><i class="fa-solid fa-fill-drip"></i><input type="color" id="xl-bg" class="xl-sw" value="#fff2a8"></label>
+        <select id="xl-nf" title="संख्या फ़ॉर्मेट"><option value="">सामान्य</option><option value="num">संख्या 0.00</option><option value="cur">₹ मुद्रा</option><option value="pct">प्रतिशत %</option></select>
+        <button class="xl-b" data-a="clr" title="फ़ॉर्मेट हटाएँ"><i class="fa-solid fa-eraser"></i></button>
+        <span class="xl-sep"></span>
+        <button class="xl-b" data-a="sum" title="ऑटो-योग (AutoSum)"><b>Σ</b></button>
+        <button class="xl-b" data-a="dn" title="ऊपर वाला सेल नीचे भरें (Ctrl+D)"><i class="fa-solid fa-angles-down"></i></button>
+        <button class="xl-b" data-a="rows" title="50 और पंक्तियाँ जोड़ें"><i class="fa-solid fa-plus"></i> पंक्तियाँ</button>
+        <span class="xl-sep"></span>
+        <button class="xl-b" data-a="new" title="नई शीट"><i class="fa-regular fa-file"></i></button>
+        <button class="xl-b" data-a="imp" title="Excel / CSV फ़ाइल खोलें"><i class="fa-regular fa-folder-open"></i></button>
+        <button class="xl-b" data-a="xlsx" title="Excel (.xlsx) में सेव करें"><i class="fa-solid fa-file-excel" style="color:#1d6f42"></i> .xlsx</button>
+        <button class="xl-b" data-a="csv" title="CSV में सेव करें"><i class="fa-solid fa-file-csv"></i></button>
+    </div>
+    <div class="xl-fb">
+        <input id="xl-nm" spellcheck="false" autocomplete="off" title="सेल पता — लिखकर Enter दबाएँ">
+        <i>ƒx</i>
+        <input id="xl-fx" spellcheck="false" autocomplete="off" placeholder="मान लिखें, या फ़ॉर्मूला जैसे =SUM(A1:A5)">
+    </div>
+    <div id="xl-sc" tabindex="0">
+        <table id="xl-tbl"></table>
+        <div id="xl-sb"></div><div id="xl-ac"></div>
+        <input id="xl-ed" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="xl-st"><span>सेल चुनकर सीधे लिखें · = से फ़ॉर्मूला · Ctrl+C / V / X · Ctrl+Z वापस</span><span id="xl-st"></span></div>
+    <input type="file" id="xl-file" accept=".xlsx,.xls,.csv" hidden>
+</div>
+
+<script>
+(function () {
+    const $ = id => document.getElementById(id);
+    const root = $('xl'), sc = $('xl-sc'), tbl = $('xl-tbl'), ed = $('xl-ed'), fx = $('xl-fx'), nm = $('xl-nm'),
+          sb = $('xl-sb'), ac = $('xl-ac'), stEl = $('xl-st'), nfSel = $('xl-nf');
+    const COLS = 40, KEY = 'cad_xl_v1';
+    let ROWS = 100, W = Array(COLS).fill(90), D = {}, S = {}, tds = [], cth = [], rth = [], cols = [];
+    let A = { r: 0, c: 0 }, F = { r: 0, c: 0 }, editing = false, edMode = '', drag = false, rs = null;
+    let undoS = [], redoS = [], clip = null, hl = [];
+    let pT;
+    const cache = new Map(), busy = new Set();
+
+    const cn = c => { let s = ''; c++; while (c > 0) { s = String.fromCharCode(65 + (c - 1) % 26) + s; c = Math.floor((c - 1) / 26); } return s; };
+    const ci = s => s.split('').reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+    const kk = (r, c) => r + ',' + c;
+    const ref = (r, c) => cn(c) + (r + 1);
+
+/*ENGINE*/
+    class XE { constructor(m) { this.m = m; } }
+    const E = m => { throw new XE(m); };
+    const AST = new Map();
+    const TRE = /\s*(?:(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+)|"((?:[^"]|"")*)"|(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?)(?![\w(])|([A-Za-z_][\w.]*)|(<=|>=|<>|[-+*\/^&=<>%(),:]))/y;
+    function tok(s) {
+        const t = []; let i = 0, m;
+        while (i < s.length) {
+            TRE.lastIndex = i; m = TRE.exec(s);
+            if (!m) { if (/^\s*$/.test(s.slice(i))) break; E('#NAME?'); }
+            i = TRE.lastIndex;
+            if (m[1] !== undefined) t.push({ t: 'n', v: parseFloat(m[1]) });
+            else if (m[2] !== undefined) t.push({ t: 's', v: m[2].replace(/""/g, '"') });
+            else if (m[3]) t.push({ t: 'r', v: m[3].toUpperCase().replace(/\$/g, '') });
+            else if (m[4]) t.push({ t: 'f', v: m[4].toUpperCase() });
+            else t.push({ t: 'o', v: m[5] });
+        }
+        return t;
+    }
+    function parse(src) {
+        if (AST.has(src)) return AST.get(src);
+        const t = tok(src); let p = 0;
+        const nx = () => t[p++];
+        const isO = (...o) => t[p] && t[p].t === 'o' && o.includes(t[p].v);
+        const cmp = () => { let l = cat(); while (isO('=', '<>', '<', '>', '<=', '>=')) { const o = nx().v; l = ['b', o, l, cat()]; } return l; };
+        const cat = () => { let l = add(); while (isO('&')) { nx(); l = ['b', '&', l, add()]; } return l; };
+        const add = () => { let l = mul(); while (isO('+', '-')) { const o = nx().v; l = ['b', o, l, mul()]; } return l; };
+        const mul = () => { let l = pow(); while (isO('*', '/')) { const o = nx().v; l = ['b', o, l, pow()]; } return l; };
+        const pow = () => { let l = un(); while (isO('^')) { nx(); l = ['b', '^', l, un()]; } return l; };
+        const un = () => { if (isO('-', '+')) { const o = nx().v; return ['u', o, un()]; } return pct(); };
+        const pct = () => { let x = pri(); while (isO('%')) { nx(); x = ['p', x]; } return x; };
+        const pri = () => {
+            const k = nx(); if (!k) E('#ERROR!');
+            if (k.t === 'n') return ['n', k.v];
+            if (k.t === 's') return ['s', k.v];
+            if (k.t === 'r') return k.v.includes(':') ? ['g', k.v] : ['r', k.v];
+            if (k.t === 'f') {
+                if (isO('(')) {
+                    nx(); const a = [];
+                    if (!isO(')')) { do { a.push(cmp()); } while (isO(',') && nx()); }
+                    if (!isO(')')) E('#ERROR!'); nx();
+                    return ['f', k.v, a];
+                }
+                if (k.v === 'TRUE') return ['n', true];
+                if (k.v === 'FALSE') return ['n', false];
+                E('#NAME?');
+            }
+            if (k.v === '(') { const x = cmp(); if (!isO(')')) E('#ERROR!'); nx(); return x; }
+            E('#ERROR!');
+        };
+        const ast = cmp(); if (p < t.length) E('#ERROR!');
+        AST.set(src, ast); return ast;
+    }
+    const num = v => {
+        if (typeof v === 'number') return v;
+        if (v === true) return 1;
+        if (v === false || v === '' || v == null) return 0;
+        const n = Number(v); if (isNaN(n)) E('#VALUE!'); return n;
+    };
+    const str = v => v == null ? '' : v === true ? 'TRUE' : v === false ? 'FALSE' : String(v);
+    const truthy = v => v === true || (typeof v === 'number' && v !== 0);
+    const cmpv = (a, b) => {
+        if (a == null) a = typeof b === 'string' ? '' : 0;
+        if (b == null) b = typeof a === 'string' ? '' : 0;
+        if (typeof a === 'string' || typeof b === 'string') { a = str(a).toLowerCase(); b = str(b).toLowerCase(); }
+        return a < b ? -1 : a > b ? 1 : 0;
+    };
+    function lit(raw) {
+        const t = raw.trim();
+        if (t !== '' && isFinite(+t)) return +t;
+        if (/^-?\d+(\.\d+)?%$/.test(t)) return parseFloat(t) / 100;
+        if (/^(TRUE|FALSE)$/i.test(t)) return t.toUpperCase() === 'TRUE';
+        return raw;
+    }
+    function val(r, c) {
+        const k = kk(r, c);
+        if (cache.has(k)) { const v = cache.get(k); if (v instanceof XE) throw v; return v; }
+        const raw = D[k]; let v;
+        if (raw === undefined || raw === '') v = null;
+        else if (raw[0] === '=') {
+            if (busy.has(k)) throw new XE('#CIRC!');
+            busy.add(k);
+            try { v = ev(parse(raw.slice(1))); if (Array.isArray(v)) v = v[0]; if (v == null) v = 0; }
+            catch (e) { v = e instanceof XE ? e : new XE('#ERROR!'); }
+            busy.delete(k);
+        } else v = lit(raw);
+        cache.set(k, v);
+        if (v instanceof XE) throw v;
+        return v;
+    }
+    function rng(g) {
+        const [a, b] = g.split(':').map(x => { const m = /([A-Z]+)(\d+)/.exec(x); return [+m[2] - 1, ci(m[1])]; });
+        const out = [];
+        const r1 = Math.min(Math.max(a[0], b[0]), ROWS - 1), c1 = Math.min(Math.max(a[1], b[1]), COLS - 1);
+        for (let r = Math.min(a[0], b[0]); r <= r1; r++) for (let c = Math.min(a[1], b[1]); c <= c1; c++) out.push(val(r, c));
+        return out;
+    }
+    function ev(n) {
+        switch (n[0]) {
+            case 'n': case 's': return n[1];
+            case 'r': {
+                const m = /([A-Z]+)(\d+)/.exec(n[1]), r = +m[2] - 1, c = ci(m[1]);
+                if (r < 0 || r >= ROWS || c >= COLS) E('#REF!');
+                return val(r, c);
+            }
+            case 'g': return rng(n[1]);
+            case 'p': return num(ev(n[1])) / 100;
+            case 'u': { const x = num(ev(n[2])); return n[1] === '-' ? -x : x; }
+            case 'f': return fn(n[1], n[2]);
+            case 'b': {
+                const o = n[1]; let a = ev(n[2]), b = ev(n[3]);
+                if (Array.isArray(a) || Array.isArray(b)) E('#VALUE!');
+                if (o === '&') return str(a) + str(b);
+                if (o === '=' || o === '<>' || o === '<' || o === '>' || o === '<=' || o === '>=') {
+                    const d = cmpv(a, b);
+                    return o === '=' ? d === 0 : o === '<>' ? d !== 0 : o === '<' ? d < 0 : o === '>' ? d > 0 : o === '<=' ? d <= 0 : d >= 0;
+                }
+                a = num(a); b = num(b);
+                if (o === '+') return a + b;
+                if (o === '-') return a - b;
+                if (o === '*') return a * b;
+                if (o === '/') { if (b === 0) E('#DIV/0!'); return a / b; }
+                const x = Math.pow(a, b); if (isNaN(x)) E('#NUM!'); return x;
+            }
+        }
+    }
+    const crit = c => {
+        const m = /^(<=|>=|<>|<|>|=)?(.*)$/.exec(str(c)), o = m[1] || '=', t = m[2];
+        const tn = t !== '' && isFinite(+t) ? +t : t;
+        return v => {
+            if (typeof tn === 'number') {
+                if (typeof v !== 'number') return o === '<>';
+                const d = v - tn;
+                return o === '=' ? d === 0 : o === '<>' ? d !== 0 : o === '<' ? d < 0 : o === '>' ? d > 0 : o === '<=' ? d <= 0 : d >= 0;
+            }
+            const s = str(v).toLowerCase(), u = String(tn).toLowerCase();
+            return o === '<>' ? s !== u : o === '=' ? s === u : false;
+        };
+    };
+    function fn(name, args) {
+        if (name === 'IF') {
+            let c = ev(args[0]); if (Array.isArray(c)) c = c[0];
+            return truthy(c) ? (args[1] ? ev(args[1]) : true) : (args[2] ? ev(args[2]) : false);
+        }
+        if (name === 'IFERROR') {
+            try { return ev(args[0]); } catch (e) { if (e instanceof XE) return args[1] ? ev(args[1]) : ''; throw e; }
+        }
+        const a = args.map(ev), flat = a.flat(), x = i => Array.isArray(a[i]) ? a[i][0] : a[i];
+        const nums = () => flat.filter(v => typeof v === 'number');
+        switch (name) {
+            case 'SUM': return nums().reduce((p, q) => p + q, 0);
+            case 'AVERAGE': { const n = nums(); if (!n.length) E('#DIV/0!'); return n.reduce((p, q) => p + q, 0) / n.length; }
+            case 'MIN': { const n = nums(); return n.length ? Math.min(...n) : 0; }
+            case 'MAX': { const n = nums(); return n.length ? Math.max(...n) : 0; }
+            case 'COUNT': return nums().length;
+            case 'COUNTA': return flat.filter(v => v != null && v !== '').length;
+            case 'ROUND': { const f = Math.pow(10, a[1] == null ? 0 : num(x(1))); return Math.round((num(x(0)) + Number.EPSILON) * f) / f; }
+            case 'ABS': return Math.abs(num(x(0)));
+            case 'INT': return Math.floor(num(x(0)));
+            case 'SQRT': { const v = num(x(0)); if (v < 0) E('#NUM!'); return Math.sqrt(v); }
+            case 'POWER': return Math.pow(num(x(0)), num(x(1)));
+            case 'MOD': { const d = num(x(1)); if (!d) E('#DIV/0!'); const v = num(x(0)); return v - d * Math.floor(v / d); }
+            case 'CONCAT': case 'CONCATENATE': return flat.map(str).join('');
+            case 'UPPER': return str(x(0)).toUpperCase();
+            case 'LOWER': return str(x(0)).toLowerCase();
+            case 'LEN': return str(x(0)).length;
+            case 'AND': return flat.every(truthy);
+            case 'OR': return flat.some(truthy);
+            case 'NOT': return !truthy(x(0));
+            case 'TODAY': return new Date().toLocaleDateString();
+            case 'NOW': return new Date().toLocaleString();
+            case 'COUNTIF': { const f = crit(x(1)); return a[0].filter(f).length; }
+            case 'SUMIF': {
+                const f = crit(x(1)), r = a[0], s = a[2] || a[0];
+                return r.reduce((t, v, i) => t + (f(v) && typeof s[i] === 'number' ? s[i] : 0), 0);
+            }
+        }
+        E('#NAME?');
+    }
+    function shift(f, dr, dc) {
+        return f.split(/("[^"]*")/).map((p, i) => i % 2 ? p : p.replace(/(^|[^\w$.])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![\w(])/g, (m, pre, a, col, b, row) => {
+            const c = ci(col.toUpperCase()) + (a ? 0 : dc), r = +row - 1 + (b ? 0 : dr);
+            return (c < 0 || r < 0) ? pre + '#REF!' : pre + a + cn(c) + b + (r + 1);
+        })).join('');
+    }
+/*END*/
+
+    const fmtN = (v, s) => {
+        const f = s && s.nf;
+        if (!isFinite(v)) return '#NUM!';
+        if (f === 'num') return v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (f === 'cur') return '₹' + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (f === 'pct') return (v * 100).toFixed(2) + '%';
+        return String(+v.toPrecision(12));
+    };
+    function disp(r, c) {
+        try {
+            const v = val(r, c);
+            if (v == null) return { t: '' };
+            if (typeof v === 'number') return { t: fmtN(v, S[kk(r, c)]), n: 1 };
+            if (typeof v === 'boolean') return { t: v ? 'TRUE' : 'FALSE' };
+            return { t: String(v) };
+        } catch (e) { if (e instanceof XE) return { t: e.m, e: 1 }; throw e; }
+    }
+    const plain = (r, c) => { try { const v = val(r, c); return v == null ? '' : String(v); } catch (e) { return e.m || '#ERROR!'; } };
+
+    // ---------- state ----------
+    const cur = () => JSON.stringify({ D, S, W, ROWS });
+    let saveT;
+    function save() {
+        clearTimeout(saveT);
+        saveT = setTimeout(() => {
+            const s = cur(); try { localStorage.setItem(KEY, s); } catch (e) {}
+            const x = window.CADX;
+            if (x && Object.keys(D).length) x.db.ref('xl/s/' + x.uid).set({ d: s, t: x.SV.TIMESTAMP }).catch(() => {});
+        }, 400);
+    }
+    function snap() { undoS.push(cur()); if (undoS.length > 60) undoS.shift(); redoS = []; }
+    function load(s) { const o = JSON.parse(s); D = o.D; S = o.S; W = o.W; ROWS = o.ROWS; build(); }
+    function doUndo() { endEdit(false, false); if (!undoS.length) return; redoS.push(cur()); load(undoS.pop()); }
+    function doRedo() { endEdit(false, false); if (!redoS.length) return; undoS.push(cur()); load(redoS.pop()); }
+    try { const s = localStorage.getItem(KEY); if (s) { const o = JSON.parse(s); D = o.D || {}; S = o.S || {}; ROWS = o.ROWS || 100; if (o.W && o.W.length === COLS) W = o.W; } } catch (e) {}
+
+    let msgT;
+    function msg(t) { const m = $('xl-msg'); m.textContent = t; clearTimeout(msgT); msgT = setTimeout(() => m.textContent = '', 3500); }
+
+    // ---------- render ----------
+    function build() {
+        let h = '<colgroup><col style="width:44px">' + W.map(w => `<col style="width:${w}px">`).join('') + '</colgroup><thead><tr><th class="cr"></th>';
+        for (let c = 0; c < COLS; c++) h += `<th data-c="${c}">${cn(c)}<i class="rz" data-c="${c}"></i></th>`;
+        h += '</tr></thead><tbody>';
+        for (let r = 0; r < ROWS; r++) {
+            h += `<tr><th data-r="${r}">${r + 1}</th>`;
+            for (let c = 0; c < COLS; c++) h += `<td data-r="${r}" data-c="${c}"></td>`;
+            h += '</tr>';
+        }
+        tbl.innerHTML = h + '</tbody>';
+        tbl.style.width = (44 + W.reduce((a, b) => a + b, 0)) + 'px';
+        const rows = [...tbl.tBodies[0].rows];
+        tds = rows.map(tr => [...tr.cells].slice(1));
+        rth = rows.map(tr => tr.cells[0]);
+        cth = [...tbl.tHead.rows[0].cells].slice(1);
+        cols = [...tbl.querySelectorAll('col')];
+        hl = [];
+        A.r = Math.min(A.r, ROWS - 1); F.r = Math.min(F.r, ROWS - 1);
+        refresh(); sel(false);
+    }
+    function refresh() {
+        cache.clear();
+        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+            const td = tds[r][c], k = kk(r, c), has = D[k] !== undefined || S[k];
+            if (!has && !td._u) continue;
+            td._u = !!has;
+            const d = disp(r, c), s = S[k] || {};
+            td.textContent = d.t;
+            td.style.cssText = `text-align:${s.al || (d.e ? 'center' : d.n ? 'right' : 'left')};` + (s.b ? 'font-weight:700;' : '') + (s.i ? 'font-style:italic;' : '') + (s.u ? 'text-decoration:underline;' : '') + (s.co ? 'color:' + s.co + ';' : '') + (s.bg ? 'background:' + s.bg + ';' : '') + (d.e ? 'color:#c62828;' : '');
+        }
+        stats(); save();
+    }
+    const rect = () => ({ r0: Math.min(A.r, F.r), r1: Math.max(A.r, F.r), c0: Math.min(A.c, F.c), c1: Math.max(A.c, F.c) });
+    function eachSel(fn) { const q = rect(); for (let r = q.r0; r <= q.r1; r++) for (let c = q.c0; c <= q.c1; c++) fn(r, c); }
+    function place(el, a, b) {
+        Object.assign(el.style, { display: 'block', left: a.offsetLeft + 'px', top: a.offsetTop + 'px', width: (b.offsetLeft + b.offsetWidth - a.offsetLeft) + 'px', height: (b.offsetTop + b.offsetHeight - a.offsetTop) + 'px' });
+    }
+    function reveal(td) {
+        const x = td.offsetLeft, y = td.offsetTop, w = td.offsetWidth, h = td.offsetHeight;
+        if (x < sc.scrollLeft + 44) sc.scrollLeft = x - 44;
+        else if (x + w > sc.scrollLeft + sc.clientWidth) sc.scrollLeft = x + w - sc.clientWidth;
+        if (y < sc.scrollTop + 24) sc.scrollTop = y - 24;
+        else if (y + h > sc.scrollTop + sc.clientHeight) sc.scrollTop = y + h - sc.clientHeight;
+    }
+    function sel(scroll = true) {
+        if (!tds.length || root.classList.contains('hidden')) return;
+        const q = rect();
+        place(sb, tds[q.r0][q.c0], tds[q.r1][q.c1]);
+        place(ac, tds[A.r][A.c], tds[A.r][A.c]);
+        hl.forEach(x => x.classList.remove('hl')); hl = [];
+        for (let c = q.c0; c <= q.c1; c++) hl.push(cth[c]);
+        for (let r = q.r0; r <= q.r1; r++) hl.push(rth[r]);
+        hl.forEach(x => x.classList.add('hl'));
+        nm.value = (q.r0 === q.r1 && q.c0 === q.c1) ? ref(A.r, A.c) : ref(q.r0, q.c0) + ':' + ref(q.r1, q.c1);
+        if (!editing) fx.value = D[kk(A.r, A.c)] || '';
+        const s = S[kk(A.r, A.c)] || {};
+        $('xl-bb').classList.toggle('on', !!s.b); $('xl-bi').classList.toggle('on', !!s.i); $('xl-bu').classList.toggle('on', !!s.u);
+        nfSel.value = s.nf || '';
+        stats();
+        if (scroll) reveal(tds[F.r][F.c]);
+        pres();
+    }
+    function stats() {
+        const q = rect(); let n = 0, s = 0, cnt = 0;
+        if (q.r0 === q.r1 && q.c0 === q.c1) { stEl.textContent = ''; return; }
+        for (let r = q.r0; r <= q.r1; r++) for (let c = q.c0; c <= q.c1; c++) {
+            if (D[kk(r, c)] === undefined) continue;
+            cnt++;
+            try { const v = val(r, c); if (typeof v === 'number') { n++; s += v; } } catch (e) {}
+        }
+        stEl.textContent = 'गिनती: ' + cnt + (n ? '   योग: ' + fmtN(s) + '   औसत: ' + fmtN(s / n) : '');
+    }
+
+    // ---------- edit ----------
+    function setRaw(r, c, v) {
+        const k = kk(r, c);
+        if ((D[k] || '') === v) return;
+        snap();
+        if (v === '') delete D[k]; else D[k] = v;
+        refresh(); sel(false);
+    }
+    function startEdit(init) {
+        if (editing) return;
+        const td = tds[A.r][A.c];
+        editing = true; edMode = init == null ? 'edit' : 'enter'; pres();
+        Object.assign(ed.style, { display: 'block', left: td.offsetLeft + 'px', top: td.offsetTop + 'px', minWidth: td.offsetWidth + 'px', height: td.offsetHeight + 'px' });
+        ed.value = init == null ? (D[kk(A.r, A.c)] || '') : init;
+        ed.focus(); ed.setSelectionRange(ed.value.length, ed.value.length);
+        fx.value = ed.value;
+    }
+    function endEdit(commit, refocus) {
+        if (!editing) return;
+        editing = false; ed.style.display = 'none'; pres();
+        if (commit) setRaw(A.r, A.c, ed.value);
+        if (refocus) sc.focus({ preventScroll: true });
+    }
+    const cl = (v, m) => Math.max(0, Math.min(m - 1, v));
+    function go(dr, dc, ext) {
+        if (ext) F = { r: cl(F.r + dr, ROWS), c: cl(F.c + dc, COLS) };
+        else { A = { r: cl(A.r + dr, ROWS), c: cl(A.c + dc, COLS) }; F = { ...A }; }
+        sel();
+    }
+    ed.addEventListener('keydown', e => {
+        e.stopPropagation();
+        const k = e.key;
+        if (k === 'Enter') { e.preventDefault(); endEdit(true, true); go(e.shiftKey ? -1 : 1, 0); }
+        else if (k === 'Tab') { e.preventDefault(); endEdit(true, true); go(0, e.shiftKey ? -1 : 1); }
+        else if (k === 'Escape') { e.preventDefault(); endEdit(false, true); sel(false); }
+        else if (edMode === 'enter' && /^Arrow(Up|Down|Left|Right)$/.test(k)) {
+            e.preventDefault(); endEdit(true, true);
+            go(k === 'ArrowUp' ? -1 : k === 'ArrowDown' ? 1 : 0, k === 'ArrowLeft' ? -1 : k === 'ArrowRight' ? 1 : 0);
+        }
+    });
+    ed.addEventListener('input', () => { fx.value = ed.value; pres(); });
+    ed.addEventListener('blur', () => { if (editing) endEdit(true, false); });
+    fx.addEventListener('keydown', e => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); if (editing) endEdit(false, false); setRaw(A.r, A.c, fx.value); sc.focus({ preventScroll: true }); }
+        else if (e.key === 'Escape') { fx.value = D[kk(A.r, A.c)] || ''; sc.focus({ preventScroll: true }); }
+    });
+    fx.addEventListener('input', () => { if (editing) { ed.value = fx.value; pres(); } });
+    nm.addEventListener('keydown', e => {
+        e.stopPropagation();
+        if (e.key !== 'Enter') return;
+        const m = /^([A-Za-z]+)(\d+)$/.exec(nm.value.trim());
+        if (m) { const c = ci(m[1].toUpperCase()), r = +m[2] - 1; if (r >= 0 && r < ROWS && c < COLS) { A = { r, c }; F = { r, c }; sel(); sc.focus(); return; } }
+        sel(false);
+    });
+
+    // ---------- mouse / touch ----------
+    sc.addEventListener('pointerdown', e => {
+        const rz = e.target.closest('.rz');
+        if (rz) { rs = { c: +rz.dataset.c, x: e.clientX, w: W[+rz.dataset.c] }; e.preventDefault(); return; }
+        const t = e.target.closest('td,th'); if (!t) return;
+        if (editing) {
+            if (t.tagName === 'TD' && /^=([^]*[-+*\/^(,&<>=:])?$/.test(ed.value)) {
+                e.preventDefault();
+                ed.value += ref(+t.dataset.r, +t.dataset.c); fx.value = ed.value; return;
+            }
+            endEdit(true, false);
+        }
+        e.preventDefault(); sc.focus({ preventScroll: true });
+        const touch = e.pointerType === 'touch';
+        if (t.tagName === 'TD') {
+            const r = +t.dataset.r, c = +t.dataset.c;
+            if (e.shiftKey) F = { r, c };
+            else {
+                if (touch && A.r === r && A.c === c && A.r === F.r && A.c === F.c) { startEdit(); return; }
+                A = { r, c }; F = { r, c };
+            }
+            drag = touch ? false : 'cell';
+        } else if (t.dataset.c !== undefined) {
+            const c = +t.dataset.c; if (!e.shiftKey) A = { r: 0, c }; F = { r: ROWS - 1, c };
+        } else if (t.dataset.r !== undefined) {
+            const r = +t.dataset.r; if (!e.shiftKey) A = { r, c: 0 }; F = { r, c: COLS - 1 };
+        } else { A = { r: 0, c: 0 }; F = { r: ROWS - 1, c: COLS - 1 }; }
+        sel(false);
+    });
+    sc.addEventListener('pointermove', e => {
+        if (drag !== 'cell') return;
+        const t = e.target.closest('td'); if (!t) return;
+        const r = +t.dataset.r, c = +t.dataset.c;
+        if (r !== F.r || c !== F.c) { F = { r, c }; sel(false); }
+    });
+    window.addEventListener('pointermove', e => {
+        if (!rs) return;
+        W[rs.c] = Math.max(30, rs.w + e.clientX - rs.x);
+        cols[rs.c + 1].style.width = W[rs.c] + 'px';
+        tbl.style.width = (44 + W.reduce((a, b) => a + b, 0)) + 'px';
+        sel(false);
+    });
+    window.addEventListener('pointerup', () => { drag = false; if (rs) { rs = null; save(); } });
+    sc.addEventListener('dblclick', e => { if (e.target.closest('td')) startEdit(); });
+
+    // ---------- keyboard ----------
+    sc.addEventListener('keydown', e => {
+        e.stopPropagation();
+        const k = e.key, ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl) {
+            const l = k.toLowerCase();
+            if (l === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
+            if (l === 'y') { e.preventDefault(); doRedo(); return; }
+            if (l === 'b' || l === 'i' || l === 'u') { e.preventDefault(); tog(l); return; }
+            if (l === 'd') { e.preventDefault(); fill(1); return; }
+            if (l === 'r') { e.preventDefault(); fill(0); return; }
+            if (l === 'a') { e.preventDefault(); A = { r: 0, c: 0 }; F = { r: ROWS - 1, c: COLS - 1 }; sel(false); return; }
+            if (k.startsWith('Arrow')) {
+                e.preventDefault();
+                go(k === 'ArrowUp' ? -ROWS : k === 'ArrowDown' ? ROWS : 0, k === 'ArrowLeft' ? -COLS : k === 'ArrowRight' ? COLS : 0, e.shiftKey);
+            }
+            return;
+        }
+        const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+        if (arrows[k]) { e.preventDefault(); go(arrows[k][0], arrows[k][1], e.shiftKey); }
+        else if (k === 'Enter') { e.preventDefault(); go(e.shiftKey ? -1 : 1, 0); }
+        else if (k === 'Tab') { e.preventDefault(); go(0, e.shiftKey ? -1 : 1); }
+        else if (k === 'Home') { e.preventDefault(); A.c = 0; F = { ...A }; sel(); }
+        else if (k === 'F2') { e.preventDefault(); startEdit(); }
+        else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); clearCells(); }
+        else if (k.length === 1 && !e.altKey) { e.preventDefault(); startEdit(k); }
+    });
+    root.addEventListener('keydown', e => e.stopPropagation());
+
+    // ---------- actions ----------
+    function clearCells() { snap(); eachSel((r, c) => { delete D[kk(r, c)]; }); refresh(); sel(false); }
+    function setS(r, c, p, v) {
+        const k = kk(r, c), s = S[k] || (S[k] = {});
+        if (v == null || v === false) delete s[p]; else s[p] = v;
+        if (!Object.keys(s).length) delete S[k];
+    }
+    function fmt(p, v) { snap(); eachSel((r, c) => setS(r, c, p, v)); refresh(); sel(false); }
+    function tog(l) { const p = { b: 'b', i: 'i', u: 'u' }[l]; const on = !(S[kk(A.r, A.c)] || {})[p]; fmt(p, on || null); }
+    function clrFmt() { snap(); eachSel((r, c) => { delete S[kk(r, c)]; }); refresh(); sel(false); }
+    function cp(r, c, r2, c2) {
+        const a = kk(r, c), b = kk(r2, c2), v = D[a];
+        if (v === undefined) delete D[b]; else D[b] = v[0] === '=' ? shift(v, r2 - r, c2 - c) : v;
+        if (S[a]) S[b] = { ...S[a] }; else delete S[b];
+    }
+    function fill(down) {
+        const q = rect(); snap();
+        if (down) {
+            const s0 = q.r0 === q.r1 ? q.r0 - 1 : q.r0; if (s0 < 0) return;
+            for (let c = q.c0; c <= q.c1; c++) for (let r = Math.max(q.r0, s0 + 1); r <= q.r1; r++) cp(s0, c, r, c);
+        } else {
+            const s0 = q.c0 === q.c1 ? q.c0 - 1 : q.c0; if (s0 < 0) return;
+            for (let r = q.r0; r <= q.r1; r++) for (let c = Math.max(q.c0, s0 + 1); c <= q.c1; c++) cp(r, s0, r, c);
+        }
+        refresh(); sel(false);
+    }
+    function autosum() {
+        const { r, c } = A, isN = (a, b) => { try { return typeof val(a, b) === 'number'; } catch (e) { return false; } };
+        let r0 = r; while (r0 > 0 && isN(r0 - 1, c)) r0--;
+        if (r0 < r) { setRaw(r, c, `=SUM(${ref(r0, c)}:${ref(r - 1, c)})`); return; }
+        let c0 = c; while (c0 > 0 && isN(r, c0 - 1)) c0--;
+        if (c0 < c) setRaw(r, c, `=SUM(${ref(r, c0)}:${ref(r, c - 1)})`);
+        else msg('योग के लिए पहले ऊपर या बाएँ कुछ संख्याएँ लिखें');
+    }
+    function addRows() { snap(); ROWS += 50; build(); msg('50 पंक्तियाँ जुड़ गईं (अब कुल ' + ROWS + ')'); }
+    function newSheet() { if (!confirm('नई खाली शीट खोलें? (Ctrl+Z से वापस ला सकते हैं)')) return; snap(); D = {}; S = {}; build(); }
+    function used() { let mr = 0, mc = 0; for (const k in D) { const [r, c] = k.split(',').map(Number); if (r > mr) mr = r; if (c > mc) mc = c; } return { mr, mc }; }
+    function dl(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); }
+    function csv() {
+        const { mr, mc } = used(), rows = [];
+        for (let r = 0; r <= mr; r++) { const row = []; for (let c = 0; c <= mc; c++) { const t = plain(r, c); row.push(/[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t); } rows.push(row.join(',')); }
+        return '\ufeff' + rows.join('\r\n');
+    }
+    function xlsx() {
+        if (!window.XLSX) { msg('xlsx लाइब्रेरी लोड नहीं हुई — इंटरनेट जाँचें, या CSV से सेव करें'); return; }
+        const { mr, mc } = used(), ws = {};
+        for (const k in D) {
+            const [r, c] = k.split(',').map(Number); let v; try { v = val(r, c); } catch (e) { v = e.m; }
+            const cell = typeof v === 'number' ? { t: 'n', v } : typeof v === 'boolean' ? { t: 'b', v } : { t: 's', v: v == null ? '' : String(v) };
+            if (D[k][0] === '=') cell.f = D[k].slice(1);
+            ws[XLSX.utils.encode_cell({ r, c })] = cell;
+        }
+        ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: mr, c: mc } });
+        ws['!cols'] = W.slice(0, mc + 1).map(w => ({ wpx: w }));
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+        XLSX.writeFile(wb, 'sheet.xlsx'); msg('sheet.xlsx सेव हो गई');
+    }
+    const fileIn = $('xl-file');
+    fileIn.addEventListener('change', async () => {
+        const f = fileIn.files[0]; if (!f) return;
+        if (!window.XLSX) { msg('xlsx लाइब्रेरी लोड नहीं हुई — इंटरनेट जाँचें'); return; }
+        try {
+            const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', codepage: 65001 });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            snap(); D = {}; S = {};
+            for (const a in ws) {
+                if (a[0] === '!') continue;
+                const p = XLSX.utils.decode_cell(a), c = ws[a];
+                if (p.c >= COLS) continue;
+                if (p.r >= ROWS) ROWS = Math.ceil((p.r + 1) / 50) * 50;
+                const raw = c.f ? '=' + c.f : (c.v == null ? '' : String(c.v));
+                if (raw !== '') D[kk(p.r, p.c)] = raw;
+            }
+            build(); msg(f.name + ' खुल गई');
+        } catch (err) { msg('फ़ाइल नहीं खुल सकी'); }
+        fileIn.value = '';
+    });
+
+    // ---------- copy / paste ----------
+    const inField = () => { const t = document.activeElement && document.activeElement.tagName; return t === 'INPUT' || t === 'SELECT'; };
+    const isOpen = () => !root.classList.contains('hidden');
+    function doCopy(cd) {
+        const q = rect(), rows = [], txt = [];
+        for (let r = q.r0; r <= q.r1; r++) {
+            const row = [], t = [];
+            for (let c = q.c0; c <= q.c1; c++) { const k = kk(r, c); row.push({ v: D[k], s: S[k] }); t.push(plain(r, c)); }
+            rows.push(row); txt.push(t.join('\t'));
+        }
+        clip = { r0: q.r0, c0: q.c0, rows, txt: txt.join('\n') };
+        cd.setData('text/plain', clip.txt);
+    }
+    document.addEventListener('copy', e => { if (!isOpen() || editing || inField()) return; e.preventDefault(); doCopy(e.clipboardData); msg('कॉपी हुआ'); });
+    document.addEventListener('cut', e => { if (!isOpen() || editing || inField()) return; e.preventDefault(); doCopy(e.clipboardData); clearCells(); });
+    document.addEventListener('paste', e => {
+        if (!isOpen() || editing || inField()) return;
+        e.preventDefault();
+        const t = e.clipboardData.getData('text/plain'); let nr = 1, nc = 1;
+        snap();
+        if (clip && clip.txt === t) {
+            const dr = A.r - clip.r0, dc = A.c - clip.c0; nr = clip.rows.length; nc = clip.rows[0].length;
+            clip.rows.forEach((row, i) => row.forEach((x, j) => {
+                const r = A.r + i, c = A.c + j; if (r >= ROWS || c >= COLS) return;
+                const k = kk(r, c);
+                if (x.v === undefined) delete D[k]; else D[k] = x.v[0] === '=' ? shift(x.v, dr, dc) : x.v;
+                if (x.s) S[k] = { ...x.s }; else delete S[k];
+            }));
+        } else {
+            const lines = t.replace(/\r/g, '').replace(/\n$/, '').split('\n'); nr = lines.length; nc = 1;
+            lines.forEach((line, i) => { const cells = line.split('\t'); nc = Math.max(nc, cells.length); cells.forEach((v, j) => {
+                const r = A.r + i, c = A.c + j; if (r >= ROWS || c >= COLS) return;
+                if (v === '') delete D[kk(r, c)]; else D[kk(r, c)] = v;
+            }); });
+        }
+        F = { r: Math.min(ROWS - 1, A.r + nr - 1), c: Math.min(COLS - 1, A.c + nc - 1) };
+        refresh(); sel(false);
+    });
+
+    // ---------- Users: CAD wale "अन्य Users" window se hi (ek hi system) ----------
+    const X = () => window.CADX;
+    const myName = () => { const x = X(), u = x && x.users()[x.uid]; return (u && u.name) || 'User'; };
+    function pres() {
+        const x = X(); if (!x || root.classList.contains('hidden')) return;
+        clearTimeout(pT);
+        pT = setTimeout(() => {
+            const q = rect(), one = q.r0 === q.r1 && q.c0 === q.c1;
+            x.db.ref('xl/p/' + x.uid).set({ n: myName(), c: ref(A.r, A.c), g: one ? '' : ref(q.r0, q.c0) + ':' + ref(q.r1, q.c1), e: editing ? 1 : 0, v: editing ? String(ed.value).slice(0, 300) : '', t: x.SV.TIMESTAMP }).catch(() => {});
+        }, 150);
+    }
+    function arm() { const x = X(); if (!x) return; x.db.ref('xl/p/' + x.uid).onDisconnect().remove(); pres(); }
+    let inited = false;
+    function initX() { const x = X(); if (!x || inited) return; inited = true; x.db.ref('.info/connected').on('value', s => { if (s.val() && isOpen()) arm(); }); }
+    $('xl-ub').addEventListener('click', () => { const b = $('others-btn'); if (b) b.click(); else msg('Users system लोड नहीं हुआ'); });
+    const obt = $('others-btn-text');
+    if (obt) { const sy = () => { $('xl-ub-t').textContent = obt.textContent; }; new MutationObserver(sy).observe(obt, { childList: true, characterData: true, subtree: true }); sy(); }
+    const esc = t => String(t).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    // dusre user ki sheet (read-only) "अन्य Users" window ke Excel tab mein dikhane ke liye
+    window.XLV = {
+        render(el, o, p, col) {
+            const bD = D, bS = S, bR = ROWS; let h = '';
+            D = (o && o.D) || {}; S = (o && o.S) || {}; ROWS = (o && o.ROWS) || 100; cache.clear();
+            try {
+                let mr = 0, mc = 0;
+                for (const k in D) { const [r, c] = k.split(',').map(Number); if (r > mr) mr = r; if (c > mc) mc = c; }
+                const m = p && /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(p.g || p.c || '');
+                const q = m ? { c0: ci(m[1]), r0: +m[2] - 1, c1: m[3] ? ci(m[3]) : ci(m[1]), r1: m[4] ? +m[4] - 1 : +m[2] - 1 } : null;
+                const em = p && p.e && /^([A-Z]+)(\d+)$/.exec(p.c || '');
+                const ec = em ? { r: +em[2] - 1, c: ci(em[1]) } : null;
+                const nr = Math.min(ROWS, Math.max(mr + 1, 25, q ? q.r1 + 1 : 0, ec ? ec.r + 1 : 0)), nc = Math.min(COLS, Math.max(mc + 1, 10, q ? q.c1 + 1 : 0, ec ? ec.c + 1 : 0));
+                h = '<table><thead><tr><th class="rn"></th>';
+                for (let c = 0; c < nc; c++) h += '<th>' + cn(c) + '</th>';
+                h += '</tr></thead><tbody>';
+                for (let r = 0; r < nr; r++) {
+                    h += '<tr><th class="rn">' + (r + 1) + '</th>';
+                    for (let c = 0; c < nc; c++) {
+                        const s2 = S[kk(r, c)] || {}, d = disp(r, c);
+                        let st = 'text-align:' + (s2.al || (d.e ? 'center' : d.n ? 'right' : 'left')) + ';' + (s2.b ? 'font-weight:700;' : '') + (s2.i ? 'font-style:italic;' : '') + (s2.u ? 'text-decoration:underline;' : '') + (s2.co ? 'color:' + s2.co + ';' : '') + (s2.bg ? 'background:' + s2.bg + ';' : '') + (d.e ? 'color:#c62828;' : '');
+                        if (q && r >= q.r0 && r <= q.r1 && c >= q.c0 && c <= q.c1) st += 'box-shadow:inset 0 0 0 2px ' + (col || '#1d6f42') + ';' + (s2.bg ? '' : 'background:rgba(29,111,66,.14);');
+                        if (ec && r === ec.r && c === ec.c) {
+                            st += 'background:#fff8c4;outline:2px solid ' + (col || '#1d6f42') + ';outline-offset:-2px;text-align:left;color:#000;';
+                            h += '<td style="' + st + '">' + esc(p.v || '') + '<span style="border-left:2px solid #000;margin-left:1px"></span></td>';
+                        } else h += '<td style="' + st + '">' + esc(d.t) + '</td>';
+                    }
+                    h += '</tr>';
+                }
+                h += '</tbody></table>';
+            } finally { D = bD; S = bS; ROWS = bR; cache.clear(); }
+            el.innerHTML = h;
+        }
+    };
+
+    // ---------- toolbar / open / close ----------
+    const act = { undo: doUndo, redo: doRedo, b: () => tog('b'), i: () => tog('i'), u: () => tog('u'),
+        l: () => fmt('al', 'left'), c: () => fmt('al', 'center'), r: () => fmt('al', 'right'),
+        clr: clrFmt, sum: autosum, dn: () => fill(1), rows: addRows, new: newSheet, imp: () => fileIn.click(), xlsx,
+        csv: () => { dl(new Blob([csv()], { type: 'text/csv;charset=utf-8' }), 'sheet.csv'); msg('sheet.csv सेव हो गई'); } };
+    const tb = $('xl-tb');
+    tb.addEventListener('mousedown', e => { if (!e.target.closest('input,select')) e.preventDefault(); });
+    tb.addEventListener('click', e => {
+        const b = e.target.closest('[data-a]');
+        if (b && act[b.dataset.a]) { act[b.dataset.a](); if (!editing) sc.focus({ preventScroll: true }); }
+    });
+    $('xl-co').addEventListener('change', e => fmt('co', e.target.value));
+    $('xl-bg').addEventListener('change', e => fmt('bg', e.target.value));
+    nfSel.addEventListener('change', () => { fmt('nf', nfSel.value || null); sc.focus({ preventScroll: true }); });
+    $('xl-close').addEventListener('click', () => {
+        endEdit(true, false); root.classList.add('hidden');
+        const x = X(); if (x) x.db.ref('xl/p/' + x.uid).remove().catch(() => {});
+    });
+    $('xl-open').addEventListener('click', () => {
+        root.classList.remove('hidden');
+        if (!tds.length) build(); else sel(false);
+        sc.focus({ preventScroll: true });
+        initX(); arm();
+    });
+})();
+</script>
+
 </body>
 </html>
